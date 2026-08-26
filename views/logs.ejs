@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title><%= pageTitle %></title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+  <%- include('partials/header') %>
+
+  <div class="admin-layout">
+    <%- include('partials/sidebar') %>
+
+    <main class="main-content">
+      <h1 class="page-header">System Activity Logs</h1>
+
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Log ID</th>
+              <th>Action Executed</th>
+              <th>Performed By</th>
+              <th>Target ID</th>
+              <th>Timestamp</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% logs.forEach(log => { %>
+              <tr>
+                <td>#<%= log.id %></td>
+                <td><strong><%= log.action %></strong></td>
+                <td><%= log.admin %></td>
+                <td><%= log.target %></td>
+                <td><%= log.timestamp %></td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+
+  <%- include('partials/footer') %>
+
+</body>
+</html>

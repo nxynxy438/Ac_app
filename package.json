@@ -1,0 +1,25 @@
+{
+  "name": "node-admin-panel",
+  "version": "1.0.0",
+  "description": "Online Banking System - Admin & Client Portal",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "dev": "nodemon app.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "ejs": "^3.1.9",
+    "express": "^4.19.2",
+    "express-session": "^1.19.0",
+    "express-validator": "^7.3.2",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.9.2",
+    "mysql2": "^3.23.4"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  }
+}

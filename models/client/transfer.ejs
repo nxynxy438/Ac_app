@@ -1,0 +1,26 @@
+<%- include('partials/header') %>
+<%- include('partials/navbar') %>
+
+<div class="client-container">
+  <h1><%= pageTitle %></h1>
+
+  <% if (message) { %>
+    <div class="alert alert-<%= message.type %>"><%= message.text %></div>
+  <% } %>
+
+  <div class="card" style="max-width: 500px;">
+    <form action="/client/transfer" method="POST">
+      <div style="margin-bottom: 15px;">
+        <label style="display: block; margin-bottom: 5px;">Recipient Account Number</label>
+        <input type="text" name="recipientAccount" required placeholder="e.g. ACC-8802" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px;">
+      </div>
+      <div style="margin-bottom: 15px;">
+        <label style="display: block; margin-bottom: 5px;">Amount ($)</label>
+        <input type="number" step="0.01" name="amount" required placeholder="0.00" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px;">
+      </div>
+      <button type="submit" class="btn btn-primary" style="width: 100%;">Send Payment</button>
+    </form>
+  </div>
+</div>
+
+<%- include('partials/footer') %>

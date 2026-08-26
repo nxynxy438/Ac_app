@@ -1,0 +1,55 @@
+<%- include('partials/header') %>
+<%- include('partials/sidebar') %>
+
+<div class="main-content">
+  <h1><%= pageTitle %></h1>
+  
+  <div class="card">
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Account No</th>
+            <th>Balance</th>
+            <th>Status</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% users.forEach(user => { %>
+            <% 
+              // Robustly normalize status to handle any spacing, casing or undefined values
+              const currentStatus = (user.status || '').trim().toLowerCase();
+              const isActive = currentStatus === 'active';
+            %>
+            <tr>
+              <td><%= user.id %></td>
+              <td><strong><%= user.name || user.username || 'Client User' %></strong></td>
+              <td><%= user.email || 'N/A' %></td>
+              <td><%= user.accountNo || user.account_number %></td>
+              <td>$<%= Number(user.balance || 0).toFixed(2) %></td>
+              <td>
+                <span class="badge <%= isActive ? 'badge-active' : 'badge-frozen' %>">
+                  <%= user.status || 'Inactive' %>
+                </span>
+              </td>
+              <td>
+                <form action="/admin/users/toggle-status" method="POST" style="display:inline; margin:0;">
+                  <input type="hidden" name="userId" value="<%= user.id %>">
+                  <button type="submit" class="btn <%= isActive ? 'btn-danger' : 'btn-success' %>" style="cursor:pointer;">
+                    <%= isActive ? 'Freeze' : 'Activate' %>
+                  </button>
+                </form>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<%- include('partials/footer') %>

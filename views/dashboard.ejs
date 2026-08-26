@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= pageTitle %></title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+  <%- include('partials/header') %>
+
+  <div class="admin-layout">
+    <%- include('partials/sidebar') %>
+
+    <main class="main-content">
+      <h1 class="page-header">Dashboard Summary</h1>
+
+      <div class="cards-grid">
+        <div class="card">
+          <h3>Total Users</h3>
+          <div class="metric"><%= data.totalUsers %></div>
+        </div>
+        <div class="card">
+          <h3>Total Revenue</h3>
+          <div class="metric">$<%= data.totalRevenue.toLocaleString() %></div>
+        </div>
+        <div class="card">
+          <h3>Active Accounts</h3>
+          <div class="metric"><%= data.activeAccounts %></div>
+        </div>
+        <div class="card">
+          <h3>Pending Loan Requests</h3>
+          <div class="metric"><%= data.pendingLoans %></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <%- include('partials/footer') %>
+
+</body>
+</html>

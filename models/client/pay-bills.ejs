@@ -1,0 +1,25 @@
+<%- include('partials/header') %>
+<%- include('partials/navbar') %>
+
+<div class="client-container">
+  <h1><%= pageTitle %></h1>
+  <div class="card" style="max-width: 500px;">
+    <form>
+      <div style="margin-bottom: 15px;">
+        <label style="display: block; margin-bottom: 5px;">Biller Service</label>
+        <select style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px;">
+          <option>Electricity Authority (EDC)</option>
+          <option>Water Supply Authority (PPWSA)</option>
+          <option>Internet Service Provider</option>
+        </select>
+      </div>
+      <div style="margin-bottom: 15px;">
+        <label style="display: block; margin-bottom: 5px;">Consumer Bill Number</label>
+        <input type="text" placeholder="e.g. BILL-99201" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px;">
+      </div>
+      <button type="button" class="btn btn-success" style="width: 100%;">Pay Utility Bill</button>
+    </form>
+  </div>
+</div>
+
+<%- include('partials/footer') %>

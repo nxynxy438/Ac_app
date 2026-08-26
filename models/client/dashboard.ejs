@@ -1,0 +1,49 @@
+<%- include('partials/header') %>
+<div class="client-wrapper">
+  <%- include('partials/navbar') %>
+
+  <div class="client-container">
+    <h1>Welcome back, <%= account.name %></h1>
+    <p style="margin-bottom: 24px;">Here is your account overview and recent activity.</p>
+    
+    <!-- Balance Card Widget -->
+    <div class="balance-card">
+      <div class="account-label">Primary Account Balance</div>
+      <div class="balance-amount">$<%= account.balance.toFixed(2) %> <span style="font-size:1.5rem;"><%= account.currency %></span></div>
+      <div class="account-footer">
+        <div>Account: <strong><%= account.accountNo %></strong></div>
+        <div>Status: <span class="badge badge-active"><%= account.status %></span></div>
+      </div>
+    </div>
+
+    <!-- Recent Transactions Table -->
+    <div class="card">
+      <h3>Recent Transactions</h3>
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Type</th>
+              <th>Recipient / Details</th>
+              <th>Amount</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% transactions.forEach(txn => { %>
+              <tr>
+                <td><strong><%= txn.id %></strong></td>
+                <td><%= txn.type %></td>
+                <td><%= txn.recipient %></td>
+                <td style="color: var(--danger); font-weight: 700;">-$<%= txn.amount.toFixed(2) %></td>
+                <td><%= txn.date %></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+<%- include('partials/footer') %>
