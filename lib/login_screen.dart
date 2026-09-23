@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'otp_screen.dart'; // Links to your OTP screen
+import 'otp_screen.dart';
+import 'api_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -10,7 +10,7 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
   final FocusNode _focusNode = FocusNode();
   bool _isEntered = false;
   bool _isLoading = false; 
@@ -18,9 +18,9 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    _phoneController.addListener(() {
+    _emailController.addListener(() {
       setState(() {
-        _isEntered = _phoneController.text.isNotEmpty;
+        _isEntered = _emailController.text.isNotEmpty;
       });
     });
 
@@ -31,85 +31,56 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
-    _phoneController.dispose();
+    _emailController.dispose();
     _focusNode.dispose();
     super.dispose();
   }
 
-  Future<void> _verifyPhoneNumber() async {
+  Future<void> _sendEmailOtp() async {
+    if (_isLoading) return;
+
     setState(() {
       _isLoading = true;
     });
 
-    String rawNumber = _phoneController.text.trim();
-    if (rawNumber.startsWith('0')) {
-      rawNumber = rawNumber.substring(1);
-    }
-    String fullPhoneNumber = '+855$rawNumber';
-
-    FirebaseAuth auth = FirebaseAuth.instance;
-    bool codeSentTriggered = false;
+    String email = _emailController.text.trim();
 
     try {
-      // We wrap the verification in a 3-second timeout race
-      await Future.any([
-        auth.verifyPhoneNumber(
-          phoneNumber: fullPhoneNumber,
-          verificationCompleted: (PhoneAuthCredential credential) async {
-            if (codeSentTriggered) return;
-            codeSentTriggered = true;
-            await auth.signInWithCredential(credential);
-            if (!mounted) return;
-            setState(() {
-              _isLoading = false;
-            });
-          },
-          verificationFailed: (FirebaseAuthException e) {
-            if (codeSentTriggered) return;
-            codeSentTriggered = true;
-            if (!mounted) return;
-            setState(() {
-              _isLoading = false;
-            });
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text("Verification Failed: ${e.message}")),
-            );
-          },
-          codeSent: (String verificationId, int? resendToken) {
-            if (codeSentTriggered) return;
-            codeSentTriggered = true;
-            if (!mounted) return;
-            setState(() {
-              _isLoading = false;
-            });
-            
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => OtpScreen(
-                  verificationId: verificationId,
-                  phoneNumber: fullPhoneNumber,
-                ),
-              ),
-            );
-          },
-          codeAutoRetrievalTimeout: (String verificationId) {},
-        ),
-        // Forces a timeout error if Firebase takes more than 3 seconds
-        Future.delayed(const Duration(seconds: 3), () {
-          if (!codeSentTriggered) {
-            throw Exception("Request timed out. Please check your network or test configuration.");
-          }
-        })
-      ]);
+      bool success = await ApiService.sendOtp(email);
+
+      if (!mounted) return;
+
+      if (success) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => OtpScreen(
+              email: email, 
+            ),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Failed to send OTP. Please check your email or database."),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _isLoading = false; // Always unlocks the button immediately on timeout/error
-      });
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Timeout / Error: ${e.toString()}")),
+        SnackBar(
+          content: Text("Network Error: ${e.toString()}"),
+          backgroundColor: Colors.red,
+        ),
       );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -163,7 +134,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 8),
                       const Text(
-                        'សេចក្តីសង្ខេប "ធនាគារ អេស៊ីលីដា"',
+                        'បញ្ចូលអ៊ីមែលរបស់អ្នកដើម្បីទទួលកូដ OTP',
                         style: TextStyle(
                           fontSize: 14,
                           color: Colors.white70,
@@ -171,7 +142,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 40),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                         decoration: BoxDecoration(
                           color: const Color(0xFF1A2238).withValues(alpha: 0.8),
                           borderRadius: BorderRadius.circular(12),
@@ -181,32 +152,16 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         child: Row(
                           children: [
-                            const Text('🇰🇭', style: TextStyle(fontSize: 20)),
-                            const SizedBox(width: 8),
-                            const Text(
-                              '+855',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w500,
-                                fontSize: 16,
-                              ),
-                            ),
-                            const Icon(Icons.arrow_drop_down, color: Colors.white70),
-                            const SizedBox(width: 8),
-                            Container(
-                              height: 24,
-                              width: 1,
-                              color: Colors.white24,
-                            ),
+                            const Icon(Icons.email_outlined, color: Colors.white70),
                             const SizedBox(width: 12),
                             Expanded(
                               child: TextField(
-                                controller: _phoneController,
+                                controller: _emailController,
                                 focusNode: _focusNode,
                                 style: const TextStyle(color: Colors.white, fontSize: 16),
-                                keyboardType: TextInputType.phone, 
+                                keyboardType: TextInputType.emailAddress, 
                                 decoration: const InputDecoration(
-                                  hintText: 'បញ្ចូលលេខទូរស័ព្ទ',
+                                  hintText: 'បញ្ចូលអ៊ីមែល (Email)',
                                   hintStyle: TextStyle(color: Colors.white38),
                                   border: InputBorder.none,
                                 ),
@@ -214,7 +169,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                             if (_isEntered)
                               GestureDetector(
-                                onTap: () => _phoneController.clear(),
+                                onTap: () => _emailController.clear(),
                                 child: const Icon(Icons.clear, color: Colors.white54, size: 18),
                               ),
                           ],
@@ -230,7 +185,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   width: double.infinity,
                   height: 50,
                   child: ElevatedButton(
-                    onPressed: (_isEntered && !_isLoading) ? _verifyPhoneNumber : null,
+                    onPressed: (_isEntered && !_isLoading) ? _sendEmailOtp : null,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF3B6CB0),
                       disabledBackgroundColor: Colors.white24,
