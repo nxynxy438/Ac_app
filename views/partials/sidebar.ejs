@@ -1,5 +1,12 @@
-<nav class="sidebar">
-  <a href="/" class="<%= pageTitle === 'Admin Dashboard' ? 'active' : '' %>">📊 Dashboard</a>
-  <a href="/users" class="<%= pageTitle === 'User & Account Management' ? 'active' : '' %>">👥 Users & Accounts</a>
-  <a href="/logs" class="<%= pageTitle === 'Activity Logs & Audits' ? 'active' : '' %>">📜 Audit Logs</a>
-</nav>
+<aside class="sidebar">
+ <div class="brand">
+<img src="/images/Acleda.png" alt="Bank Logo" width="35" height="35" style="object-fit: contain;">
+    <span>Bank Admin</span>
+</div>
+  <nav>
+    <a href="/admin" class="<%= pageTitle === 'Admin Dashboard' ? 'active' : '' %>">📊 Dashboard</a>
+    <a href="/admin/users" class="<%= pageTitle === 'User & Account Management' ? 'active' : '' %>">👥 Users & Accounts</a>
+    <a href="/admin/logs" class="<%= pageTitle === 'Activity Logs & Audits' ? 'active' : '' %>">📜 Audit Logs</a>
+    <a href="/admin/otp-logs" class="<%= pageTitle === 'OTP Logs' ? 'active' : '' %>">🔑 OTP Codes</a>
+  </nav>
+</aside>

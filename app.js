@@ -6,21 +6,32 @@ const cors = require('cors');
 // Import MySQL Pool Connection and connectDB function
 const { connectDB, pool } = require('./config/db');
 const apiRoutes = require('./routes/apiRoutes');
+const otpAuthRoutes = require('./routes/otpAuth');
 
 const app = express();
 
-// Middlewares
-app.use(cors({ origin: '*', methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], allowedHeaders: ['Content-Type', 'Authorization'] }));
+// ==========================================
+// MIDDLEWARES & CONFIGURATION
+// ==========================================
+app.use(cors({ 
+  origin: '*', 
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], 
+  allowedHeaders: ['Content-Type', 'Authorization'] 
+}));
+
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-// View Engine & Static Assets
+// View Engine & Static Assets Setup
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// API Endpoints Mounting
+// ==========================================
+// API ENDPOINTS MOUNTING
+// ==========================================
 app.use('/api/v1', apiRoutes);
+app.use('/api/v1/auth', otpAuthRoutes);
 
 // ==========================================
 // 📱 FLUTTER API: TRANSFER ENDPOINT
@@ -29,29 +40,40 @@ app.post('/api/v1/transfer', async (req, res) => {
   const { recipientAccount, amount } = req.body;
   const transferAmt = parseFloat(amount);
 
+  if (isNaN(transferAmt) || transferAmt <= 0) {
+    return res.status(400).json({ success: false, message: 'Invalid transfer amount' });
+  }
+
+  const connection = await pool.getConnection();
   try {
-    // Fetch default user account from MySQL
-    const [userRows] = await pool.execute('SELECT * FROM accounts LIMIT 1');
+    await connection.beginTransaction();
+
+    const [userRows] = await connection.execute('SELECT * FROM accounts LIMIT 1 FOR UPDATE');
     let account = userRows[0];
 
     if (!account || transferAmt > account.balance) {
+      await connection.rollback();
+      connection.release();
       return res.status(400).json({ success: false, message: 'Insufficient balance or account not found' });
     }
 
     const newBalance = account.balance - transferAmt;
 
-    // 1. Update sender balance in database
-    await pool.execute('UPDATE accounts SET balance = ? WHERE account_id = ?', [newBalance, account.account_id]);
+    await connection.execute('UPDATE accounts SET balance = ? WHERE account_id = ?', [newBalance, account.account_id]);
 
-    // 2. Insert transaction log matching exact phpMyAdmin table schema (transaction_ref)
     const txnRef = `TXN-${Math.floor(1000 + Math.random() * 9000)}`;
-    await pool.execute(
+    await connection.execute(
       `INSERT INTO transactions (transaction_ref, sender_account_id, amount, type, status) VALUES (?, ?, ?, ?, ?)`,
       [txnRef, account.account_id, transferAmt, 'LOCAL_TRANSFER', 'COMPLETED']
     );
 
+    await connection.commit();
+    connection.release();
+
     res.status(200).json({ success: true, message: 'Transfer successful and saved to database!' });
   } catch (err) {
+    await connection.rollback();
+    connection.release();
     console.error("API Transfer Error:", err.message);
     res.status(500).json({ success: false, error: err.message });
   }
@@ -66,7 +88,7 @@ app.get('/seed-user', async (req, res) => {
     let existing = existingRows[0];
 
     if (existing) {
-      return res.send(`Client account already exists: ${existing.account_number} (Balance:$${existing.balance})`);
+      return res.send(`Client account already exists: ${existing.account_number} (Balance: $${existing.balance})`);
     }
 
     const [result] = await pool.execute(
@@ -124,12 +146,17 @@ app.post('/client/transfer', async (req, res) => {
   const { recipientAccount, amount } = req.body;
   const transferAmt = parseFloat(amount);
 
+  const connection = await pool.getConnection();
   try {
-    const [userRows] = await pool.execute('SELECT * FROM accounts LIMIT 1');
+    await connection.beginTransaction();
+
+    const [userRows] = await connection.execute('SELECT * FROM accounts LIMIT 1 FOR UPDATE');
     let account = userRows[0];
     if (account) account.accountNo = account.account_number;
 
     if (!account || transferAmt > account.balance) {
+      await connection.rollback();
+      connection.release();
       return res.render('client/transfer', {
         pageTitle: 'Fund Transfer',
         account: account || { balance: 0, accountNo: 'ACC-8801' },
@@ -139,16 +166,17 @@ app.post('/client/transfer', async (req, res) => {
 
     const newBalance = account.balance - transferAmt;
 
-    // Update balance in MySQL accounts table
-    await pool.execute('UPDATE accounts SET balance = ? WHERE account_id = ?', [newBalance, account.account_id]);
+    await connection.execute('UPDATE accounts SET balance = ? WHERE account_id = ?', [newBalance, account.account_id]);
     account.balance = newBalance;
 
-    // Insert transaction log matching exact schema (transaction_ref)
     const txnRef = `TXN-${Math.floor(1000 + Math.random() * 9000)}`;
-    await pool.execute(
+    await connection.execute(
       `INSERT INTO transactions (transaction_ref, sender_account_id, amount, type, status) VALUES (?, ?, ?, ?, ?)`,
       [txnRef, account.account_id, transferAmt, 'LOCAL_TRANSFER', 'COMPLETED']
     );
+
+    await connection.commit();
+    connection.release();
 
     res.render('client/transfer', {
       pageTitle: 'Fund Transfer',
@@ -156,6 +184,8 @@ app.post('/client/transfer', async (req, res) => {
       message: { type: 'success', text: `Successfully transferred $${transferAmt.toFixed(2)} to ${recipientAccount}` }
     });
   } catch (err) {
+    await connection.rollback();
+    connection.release();
     res.status(500).send("Transfer Failed: " + err.message);
   }
 });
@@ -177,7 +207,7 @@ app.get('/client/pay-bills', async (req, res) => {
 app.get('/admin', async (req, res) => {
   try {
     const [usersList] = await pool.execute('SELECT * FROM accounts');
-    
+
     const formattedUsers = usersList.map(u => ({
       ...u,
       balance: parseFloat(u.balance) || 0
@@ -200,7 +230,7 @@ app.get('/admin', async (req, res) => {
 app.get('/admin/users', async (req, res) => {
   try {
     const [usersList] = await pool.execute('SELECT * FROM accounts');
-    
+
     const users = usersList.map(user => ({
       ...user,
       id: user.account_id,
@@ -247,13 +277,32 @@ app.get('/admin/logs', async (req, res) => {
   }
 });
 
-// Start Server and Test Database Connection
+// ==========================================
+// ADMIN: OTP LOGS
+// ==========================================
+app.get('/admin/otp-logs', async (req, res) => {
+  try {
+    const [otpLogs] = await pool.execute(
+      'SELECT * FROM otp_logs ORDER BY created_at DESC LIMIT 200'
+    );
+    res.render('admin/otp-logs', { pageTitle: 'OTP Logs', otpLogs });
+  } catch (err) {
+    res.status(500).send("Database Error: " + err.message);
+  }
+});
+
+// ==========================================
+// START SERVER
+// ==========================================
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, async () => {
   console.log(`🚀 Server running successfully at http://localhost:${PORT}`);
   console.log(`👉 Customer Portal: http://localhost:${PORT}/client`);
   console.log(`👉 Admin Portal:    http://localhost:${PORT}/admin`);
   console.log(`👉 Seed Database:   http://localhost:${PORT}/seed-user`);
-  
+  console.log(`👉 Request OTP:     POST http://localhost:${PORT}/api/v1/auth/request-otp`);
+  console.log(`👉 Verify OTP:      POST http://localhost:${PORT}/api/v1/auth/verify-otp`);
+  console.log(`👉 OTP Logs:        http://localhost:${PORT}/admin/otp-logs`);
+
   await connectDB();
 });
