@@ -1,12 +1,15 @@
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 const cors = require('cors');
+const multer = require('multer');
 
 // Import MySQL Pool Connection and connectDB function
 const { connectDB, pool } = require('./config/db');
 const apiRoutes = require('./routes/apiRoutes');
 const otpAuthRoutes = require('./routes/otpAuth');
+const adminController = require('./controllers/adminController');
 
 const app = express();
 
@@ -25,13 +28,87 @@ app.use(express.json());
 // View Engine & Static Assets Setup
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use(express.static(path.join(__dirname, 'public')));
+
+// ==========================================
+// FILE UPLOAD SETUP (profile photos)
+// Saved in: <project>/uploads/profiles  ->  served at /uploads/profiles/<file>
+// ==========================================
+const profileUploadDir = path.join(__dirname, 'uploads', 'profiles');
+fs.mkdirSync(profileUploadDir, { recursive: true });
+
+const allowedExt = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.heic'];
+
+const profileUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, profileUploadDir),
+    filename: (req, file, cb) => {
+      let ext = path.extname(file.originalname).toLowerCase();
+      if (!ext) ext = '.jpg'; // fallback so the browser can show it
+      cb(null, Date.now() + '-' + Math.round(Math.random() * 1e6) + ext);
+    },
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    console.log('📎 Upload:', file.originalname, '|', file.mimetype);
+    const ok =
+      file.mimetype.startsWith('image/') ||
+      file.mimetype === 'application/octet-stream' ||
+      allowedExt.includes(ext);
+    ok ? cb(null, true) : cb(new Error('Only image files are allowed'));
+  },
+});
 
 // ==========================================
 // API ENDPOINTS MOUNTING
 // ==========================================
 app.use('/api/v1', apiRoutes);
 app.use('/api/v1/auth', otpAuthRoutes);
+
+// ==========================================
+// 📱 FLUTTER API: REGISTER PROFILE (with photo)
+// Field name for the image must be "photo"
+// ==========================================
+app.post(
+  '/api/v1/profile/register',
+  (req, res, next) => {
+    profileUpload.single('photo')(req, res, (err) => {
+      if (err) {
+        return res.status(400).json({ success: false, message: err.message });
+      }
+      next();
+    });
+  },
+  adminController.registerProfile
+);
+
+// ==========================================
+// 📱 FLUTTER API: SET LOGIN PIN
+// ==========================================
+app.post('/api/v1/register/set-pin', async (req, res) => {
+  const { email, pin } = req.body;
+
+  if (!email || !pin) {
+    return res.status(400).json({ success: false, message: 'Email and PIN are required' });
+  }
+
+  try {
+    // You can optionally save or update the PIN in your database here:
+    // await pool.execute('UPDATE user_profiles SET pin = ? WHERE email = ?', [pin, email]);
+
+    return res.status(200).json({
+      success: true,
+      message: 'PIN set successfully',
+      accountNumber: '1000804344',
+      email: email
+    });
+  } catch (err) {
+    console.error("Set PIN Error:", err.message);
+    return res.status(500).json({ success: false, message: 'Server error: ' + err.message });
+  }
+});
 
 // ==========================================
 // 📱 FLUTTER API: TRANSFER ENDPOINT
@@ -219,7 +296,7 @@ app.get('/admin', async (req, res) => {
         totalUsers: formattedUsers.length,
         activeUsers: formattedUsers.filter(u => (u.status || '').trim().toLowerCase() === 'active').length,
         frozenUsers: formattedUsers.filter(u => (u.status || '').trim().toLowerCase() === 'frozen').length,
-        totalVolume: "$14,250.00"
+        totalVolume: "$00"
       }
     });
   } catch (err) {
@@ -292,6 +369,20 @@ app.get('/admin/otp-logs', async (req, res) => {
 });
 
 // ==========================================
+// ADMIN: USERS REGISTERED (from Flutter app)
+// ==========================================
+app.get('/admin/registered', async (req, res) => {
+  try {
+    const [profiles] = await pool.execute(
+      'SELECT * FROM user_profiles ORDER BY id DESC'
+    );
+    res.render('admin/registered', { pageTitle: 'Users Registered', profiles });
+  } catch (err) {
+    res.status(500).send("Database Error: " + err.message);
+  }
+});
+
+// ==========================================
 // START SERVER
 // ==========================================
 const PORT = process.env.PORT || 3000;
@@ -302,7 +393,10 @@ app.listen(PORT, async () => {
   console.log(`👉 Seed Database:   http://localhost:${PORT}/seed-user`);
   console.log(`👉 Request OTP:     POST http://localhost:${PORT}/api/v1/auth/request-otp`);
   console.log(`👉 Verify OTP:      POST http://localhost:${PORT}/api/v1/auth/verify-otp`);
+  console.log(`👉 Register Profile: POST http://localhost:${PORT}/api/v1/profile/register`);
+  console.log(`👉 Set PIN:         POST http://localhost:${PORT}/api/v1/register/set-pin`);
   console.log(`👉 OTP Logs:        http://localhost:${PORT}/admin/otp-logs`);
+  console.log(`👉 Registered:      http://localhost:${PORT}/admin/registered`);
 
   await connectDB();
 });

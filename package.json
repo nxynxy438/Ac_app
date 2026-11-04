@@ -18,6 +18,7 @@
     "express-validator": "^7.3.2",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.9.2",
+    "multer": "^2.5.0",
     "mysql2": "^3.23.4",
     "nodemailer": "^9.0.6"
   },

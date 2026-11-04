@@ -4,6 +4,12 @@
     <meta charset="UTF-8">
     <title>Admin - OTP Logs</title>
     <link rel="stylesheet" href="/css/admin-style.css">
+    <style>
+        .badge { padding: 4px 8px; border-radius: 4px; font-size: 12px; }
+        .badge-verified { background: #d4edda; color: #155724; }
+        .badge-expired { background: #f8d7da; color: #721c24; }
+        .badge-pending { background: #fff3cd; color: #856404; }
+    </style>
 </head>
 <body>
     <div class="admin-layout" style="display: flex;">
@@ -27,19 +33,17 @@
                 <tbody>
                     <% if (typeof otpLogs !== 'undefined' && otpLogs && otpLogs.length > 0) { %>
                         <% otpLogs.forEach(log => { %>
+                            <%
+                                const statusLower = (log.status || '').toLowerCase();
+                                const badgeClass = statusLower === 'verified' ? 'badge-verified'
+                                                 : (statusLower === 'expired' ? 'badge-expired' : 'badge-pending');
+                            %>
                             <tr>
                                 <td style="padding: 10px; border: 1px solid #ddd;"><%= log.id %></td>
                                 <td style="padding: 10px; border: 1px solid #ddd;"><%= log.email %></td>
                                 <td style="padding: 10px; border: 1px solid #ddd;"><strong style="color: #007bff;"><%= log.otp_code %></strong></td>
                                 <td style="padding: 10px; border: 1px solid #ddd;">
-                                    <% 
-                                        let statusLower = (log.status || '').toLowerCase();
-                                        let bg = statusLower === 'verified' ? '#d4edda' : (statusLower === 'expired' ? '#f8d7da' : '#fff3cd');
-                                        let color = statusLower === 'verified' ? '#155724' : (statusLower === 'expired' ? '#721c24' : '#856404');
-                                    %>
-                                    <span style="padding: 4px 8px; border-radius: 4px; font-size: 12px; background: <%= bg %>; color: <%= color %>;">
-                                        <%= log.status %>
-                                    </span>
+                                    <span class="badge <%= badgeClass %>"><%= log.status %></span>
                                 </td>
                                 <td style="padding: 10px; border: 1px solid #ddd;"><%= log.created_at %></td>
                                 <td style="padding: 10px; border: 1px solid #ddd;"><%= log.verified_at || '-' %></td>
