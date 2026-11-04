@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'login_screen.dart'; // Import the login screen
+import 'user_session.dart';
 
-void main() {
+// FIX: only ONE main() is allowed. It loads the saved user data first,
+// then starts the app (KhmerBankApp, not MyApp).
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await UserSession.instance.load();
   runApp(const KhmerBankApp());
 }
 
@@ -43,7 +48,7 @@ class WelcomeScreen extends StatelessWidget {
           child: Column(
             children: [
               const Spacer(flex: 1),
-              
+
               // App Logo Container with Custom Image Asset
               Container(
                 width: 90,
@@ -90,7 +95,7 @@ class WelcomeScreen extends StatelessWidget {
                   letterSpacing: 0.5,
                 ),
               ),
-              
+
               const Spacer(flex: 2),
 
               // Bottom Language Selector Sheet Area
@@ -135,27 +140,27 @@ class WelcomeScreen extends StatelessWidget {
 
                     // Language Options Linked to Login Screen
                     _buildLanguageOption(
-                      context: context, 
-                      flagText: '🇰🇭', 
-                      languageName: 'ភាសាខ្មែរ', 
+                      context: context,
+                      flagText: '🇰🇭',
+                      languageName: 'ភាសាខ្មែរ',
                     ),
                     const SizedBox(height: 10),
                     _buildLanguageOption(
-                      context: context, 
-                      flagText: '🇬🇧', 
-                      languageName: 'English', 
+                      context: context,
+                      flagText: '🇬🇧',
+                      languageName: 'English',
                     ),
                     const SizedBox(height: 10),
                     _buildLanguageOption(
-                      context: context, 
-                      flagText: '🇱🇦', 
-                      languageName: 'ລາວ', 
+                      context: context,
+                      flagText: '🇱🇦',
+                      languageName: 'ລາວ',
                     ),
                     const SizedBox(height: 10),
                     _buildLanguageOption(
-                      context: context, 
-                      flagText: '🇨🇳', 
-                      languageName: '中文', 
+                      context: context,
+                      flagText: '🇨🇳',
+                      languageName: '中文',
                     ),
                   ],
                 ),
@@ -169,8 +174,8 @@ class WelcomeScreen extends StatelessWidget {
 
   Widget _buildLanguageOption({
     required BuildContext context,
-    required String flagText, 
-    required String languageName, 
+    required String flagText,
+    required String languageName,
   }) {
     return GestureDetector(
       onTap: () {

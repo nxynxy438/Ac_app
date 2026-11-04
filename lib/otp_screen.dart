@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'api_service.dart';
+import 'register_details_screen.dart';
 
 class OtpScreen extends StatefulWidget {
   final String email;
@@ -43,6 +44,8 @@ class _OtpScreenState extends State<OtpScreen> {
   }
 
   void _onKeyPressed(String value) {
+    if (_isVerifying) return; // ignore taps while verifying
+
     setState(() {
       if (value == "backspace") {
         if (_otpCode.isNotEmpty) {
@@ -70,13 +73,24 @@ class _OtpScreenState extends State<OtpScreen> {
       if (!mounted) return;
 
       if (result['success'] == true) {
+        _timer?.cancel();
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text("OTP Verified Successfully!"),
             backgroundColor: Colors.green,
           ),
         );
-        // TODO: Navigate to your home/dashboard screen here
+
+        // Go to Register Details screen (replaces the OTP screen)
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => RegisterDetailsScreen(
+              email: widget.email,
+            ),
+          ),
+        );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -96,6 +110,9 @@ class _OtpScreenState extends State<OtpScreen> {
           backgroundColor: Colors.red,
         ),
       );
+      setState(() {
+        _otpCode = "";
+      });
     } finally {
       if (mounted) {
         setState(() {
@@ -201,7 +218,8 @@ class _OtpScreenState extends State<OtpScreen> {
                       value: _remainingSeconds / 40,
                       strokeWidth: 6,
                       backgroundColor: Colors.grey.shade700,
-                      valueColor: const AlwaysStoppedAnimation<Color>(Colors.amber),
+                      valueColor:
+                          const AlwaysStoppedAnimation<Color>(Colors.amber),
                     ),
                   ),
                   _isVerifying
