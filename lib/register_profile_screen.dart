@@ -48,13 +48,13 @@ class _RegisterProfileScreenState extends State<RegisterProfileScreen> {
 
   final List<String> _genders = ['ប្រុស', 'ស្រី'];
   final List<String> _idTypes = [
-    'National Identity Card',
-    'Passport',
-    'Family Book',
-    'ACLEDA Bank ID Card',
-    'Monk Identification Card',
-    'Birth Certificate',
-    'Identity Certificate with Photo',
+  'អត្តសញ្ញាណប័ណ្ណសញ្ជាតិខ្មែរ', // National Identity Card
+  'លិខិតឆ្លងដែន',                // Passport
+  'សៀវភៅគ្រួសារ',                // Family Book
+  'ប័ណ្ណសម្គាល់ខ្លួនបុគ្គលិកធនាគារ អេស៊ីលីដា', // ACLEDA Bank ID Card
+  'អត្តសញ្ញាណប័ណ្ណព្រះសង្ឃ',         // Monk Identification Card
+  'សំបុត្រកំណើត',                // Birth Certificate
+  'លិខិតបញ្ជាក់អត្តសញ្ញាណមានរូបថត',    // Identity Certificate with Photo
   ];
   final List<String> _addresses = [
     'ភ្នំពេញ',
@@ -63,6 +63,24 @@ class _RegisterProfileScreenState extends State<RegisterProfileScreen> {
     'បាត់ដំបង',
     'កំពត',
     'ព្រះសីហនុ',
+    'កំពង់ចាម',
+    'កំពង់ឆ្នាំង',
+    'កំពង់ស្ពឺ',
+    'កំពង់ធំ',
+    'កោះកុង',
+    'ក្រចេះ',
+    'មណ្ឌលគីរី',
+    'ព្រៃវែង',
+    'ពោធិ៍សាត់',
+    'រតនគីរី',
+    'ស្ទឹងត្រែង',
+    'ស្វាយរៀង',
+    'តាកែវ',
+    'ត្បូងឃ្មុំ',
+    'ឧត្តរមានជ័យ',
+    'បន្ទាយមានជ័យ',
+    'ប៉ៃលិន',
+    'ព្រះវិហារ',
   ];
 
   @override

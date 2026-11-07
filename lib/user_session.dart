@@ -40,6 +40,16 @@ class UserSession extends ChangeNotifier {
   String address = '';
   String photoPath = ''; // local copy inside the app folder
   String photoUrl = ''; // full URL of the photo stored on the server
+  String accountNumber = '';
+  double balance = 1250.00;
+
+  static String generateAccountNumber() {
+    final rnd = Random();
+    final p1 = 1000 + rnd.nextInt(9000); // 4 digits e.g. 3863
+    final p2 = 10000000 + rnd.nextInt(90000000); // 8 digits e.g. 05323191
+    final p3 = 10 + rnd.nextInt(90); // 2 digits e.g. 14
+    return '$p1-$p2-$p3';
+  }
 
   bool pinSet = false;
 
@@ -60,6 +70,11 @@ class UserSession extends ChangeNotifier {
     address = p.getString('address') ?? '';
     photoPath = p.getString('photoPath') ?? '';
     photoUrl = p.getString('photoUrl') ?? '';
+    accountNumber = p.getString('accountNumber') ?? '';
+    if (accountNumber.isEmpty) {
+      accountNumber = generateAccountNumber();
+      await p.setString('accountNumber', accountNumber);
+    }
 
     final hash = await _secure.read(key: 'pin_hash');
     pinSet = hash != null && hash.isNotEmpty;
@@ -79,6 +94,7 @@ class UserSession extends ChangeNotifier {
     await p.setString('address', address);
     await p.setString('photoPath', photoPath);
     await p.setString('photoUrl', photoUrl);
+    await p.setString('accountNumber', accountNumber);
     notifyListeners();
   }
 
@@ -86,6 +102,9 @@ class UserSession extends ChangeNotifier {
   /// knows WHO is logging in (then syncFromServer() can load their profile).
   Future<void> setEmail(String value) async {
     email = value.trim();
+    if (accountNumber.isEmpty) {
+      accountNumber = generateAccountNumber();
+    }
     await _persist();
   }
 
@@ -118,6 +137,9 @@ class UserSession extends ChangeNotifier {
       } catch (e) {
         debugPrint('Could not copy photo: $e');
       }
+    }
+    if (accountNumber.isEmpty) {
+      accountNumber = generateAccountNumber();
     }
     await _persist();
   }
@@ -165,7 +187,10 @@ class UserSession extends ChangeNotifier {
             : '$baseUrl${photo.startsWith('/') ? '' : '/'}$photo';
       }
 
-      await _persist();
+      if (accountNumber.isEmpty) {
+      accountNumber = generateAccountNumber();
+    }
+    await _persist();
       return true;
     } catch (e) {
       debugPrint('syncFromServer failed: $e');
@@ -212,6 +237,7 @@ class UserSession extends ChangeNotifier {
     await _secure.deleteAll();
     email = firstName = lastName = gender = birthDate = '';
     idType = idNumber = idExpiryDate = address = photoPath = photoUrl = '';
+    accountNumber = '';
     pinSet = false;
     notifyListeners();
   }

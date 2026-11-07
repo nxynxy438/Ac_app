@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'my_qr_screen.dart';
 import 'scan_qr_screen.dart';
 import 'user_session.dart';
+import 'mobile_top_up_screen.dart';
+
 
 class _C {
   _C._();
@@ -118,7 +120,17 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: _WideButton(
                           icon: Icons.phone_android_outlined,
                           label: 'បញ្ចូលទូរស័ព្ទ',
-                          onTap: () => _soon('បញ្ចូលទូរស័ព្ទ'),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => MobileTopUpScreen(
+                                  accountNumber: UserSession.instance.accountNumber,
+                                  balance: '1,250.00 ដុល្លារ',
+                                ),
+                              ),
+                            );
+                          },
                         ),
                       ),
                     ],
@@ -315,7 +327,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // ---------------- Balance card ----------------
   Widget _balanceCard() {
-    return Container(
+    return GestureDetector(
+      onTap: () => _soon('Balance details'),
+      child: Container(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
       decoration: _boxDecoration(radius: 20),
       child: Row(
@@ -387,7 +401,8 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-    );
+    ),
+  );
   }
 
   Widget _amount(String value, String symbol, Color symbolColor) {

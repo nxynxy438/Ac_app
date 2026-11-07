@@ -299,7 +299,7 @@ class _BottomBar extends StatelessWidget {
               shape: const RoundedRectangleBorder(),
             ),
             child: const Text(
-              'OK',
+              'យល់ព្រម',
               style: TextStyle(
                 fontSize: 17,
                 fontWeight: FontWeight.w700,

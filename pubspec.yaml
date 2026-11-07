@@ -32,3 +32,6 @@ flutter:
   assets:
     - assets/Acleda.png
     - assets/image.png
+    - assets/cellcard.png
+    - assets/smart.png
+    - assets/metfone.png
