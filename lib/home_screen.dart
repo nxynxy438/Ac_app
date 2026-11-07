@@ -64,6 +64,7 @@ class _HomeScreenState extends State<HomeScreen> {
     UserSession.instance.removeListener(_onSessionChanged);
     super.dispose();
   }
+
   int _navIndex = 0;
 
   // Opens the real screen for a tile; others still show "coming soon"
@@ -108,37 +109,37 @@ class _HomeScreenState extends State<HomeScreen> {
                       Expanded(
                         child: _WideButton(
                           icon: Icons.receipt_long_outlined,
-                          label: 'Payments',
-                          onTap: () => _soon('Payments'),
+                          label: 'បង់ប្រាក់',
+                          onTap: () => _soon('បង់ប្រាក់'),
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: _WideButton(
                           icon: Icons.phone_android_outlined,
-                          label: 'Mobile Top-up',
-                          onTap: () => _soon('Mobile Top-up'),
+                          label: 'បញ្ចូលទូរស័ព្ទ',
+                          onTap: () => _soon('បញ្ចូលទូរស័ព្ទ'),
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 12),
                   _tileRow([
-                    _TileData(Icons.credit_card_outlined, 'Cards'),
-                    _TileData(Icons.qr_code_scanner, 'Scan QR'),
-                    _TileData(Icons.swap_horiz, 'Transfers'),
+                    _TileData(Icons.credit_card_outlined, 'ប័ណ្ណ'),
+                    _TileData(Icons.qr_code_scanner, 'ទូទាត់តាម​ ​QR'),
+                    _TileData(Icons.swap_horiz, 'ផ្ទេរប្រាក់'),
                   ]),
                   const SizedBox(height: 12),
                   _tileRow([
-                    _TileData(Icons.bar_chart_rounded, 'Deposits'),
-                    _TileData(Icons.payments_outlined, 'Quick Cash'),
-                    _TileData(Icons.volunteer_activism_outlined, 'Loans'),
+                    _TileData(Icons.bar_chart_rounded, 'ប្រាក់បញ្ញើ'),
+                    _TileData(Icons.payments_outlined, 'ដកប្រាក់រហ័ស'),
+                    _TileData(Icons.volunteer_activism_outlined, 'ប្រាក់កម្ចី'),
                   ]),
                   const SizedBox(height: 14),
                   _shortcuts(),
                   const SizedBox(height: 20),
                   const Text(
-                    'Recommended',
+                    'បានណែនាំ',
                     style: TextStyle(
                       color: _C.text,
                       fontSize: 18,
@@ -221,8 +222,11 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             IconButton(
               onPressed: () => _soon('Notifications'),
-              icon: const Icon(Icons.notifications_none_rounded,
-                  color: _C.text, size: 28),
+              icon: const Icon(
+                Icons.notifications_none_rounded,
+                color: _C.text,
+                size: 28,
+              ),
             ),
             Positioned(
               right: 12,
@@ -252,8 +256,11 @@ class _HomeScreenState extends State<HomeScreen> {
               color: _C.red,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: const Icon(Icons.qr_code_2_rounded,
-                color: Colors.white, size: 22),
+            child: const Icon(
+              Icons.qr_code_2_rounded,
+              color: Colors.white,
+              size: 22,
+            ),
           ),
         ),
       ],
@@ -278,7 +285,7 @@ class _HomeScreenState extends State<HomeScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Hello, $_displayName',
+                'សួរស្ដី, $_displayName',
                 style: const TextStyle(
                   color: _C.text,
                   fontSize: 17,
@@ -291,8 +298,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: const Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text('Profile',
-                        style: TextStyle(color: _C.muted, fontSize: 13)),
+                    Text(
+                      'ព័ត៍មានផ្ទាល់ខ្លួន',
+                      style: TextStyle(color: _C.muted, fontSize: 13),
+                    ),
                     Icon(Icons.chevron_right, color: _C.muted, size: 18),
                   ],
                 ),
@@ -320,11 +329,16 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.account_balance_wallet_outlined,
-                        color: _C.text, size: 26),
+                    Icon(
+                      Icons.account_balance_wallet_outlined,
+                      color: _C.text,
+                      size: 26,
+                    ),
                     SizedBox(height: 4),
-                    Text('Accounts',
-                        style: TextStyle(color: _C.text, fontSize: 12)),
+                    Text(
+                      'គណនី',
+                      style: TextStyle(color: _C.text, fontSize: 12),
+                    ),
                   ],
                 ),
               ),
@@ -338,12 +352,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    const Text('Total Balances',
-                        style: TextStyle(color: _C.muted, fontSize: 13)),
+                    const Text(
+                      'សមតុល្យសរុប',
+                      style: TextStyle(color: _C.muted, fontSize: 13),
+                    ),
                     const SizedBox(width: 10),
                     InkWell(
-                      onTap: () =>
-                          setState(() => _hideBalance = !_hideBalance),
+                      onTap: () => setState(() => _hideBalance = !_hideBalance),
                       customBorder: const CircleBorder(),
                       child: Container(
                         width: 30,
@@ -427,11 +442,11 @@ class _HomeScreenState extends State<HomeScreen> {
   // ---------------- Shortcuts ----------------
   Widget _shortcuts() {
     const items = [
-      _TileData(Icons.stars_rounded, 'My Points'),
-      _TileData(Icons.storefront_outlined, 'Toanchet Pay'),
-      _TileData(Icons.account_balance_outlined, 'Public Services'),
-      _TileData(Icons.candlestick_chart_outlined, 'CSX Trading'),
-      _TileData(Icons.directions_car_outlined, 'Car Marketplace'),
+      _TileData(Icons.stars_rounded, 'ពិន្ទុរបស់ខ្ញុំ'),
+      _TileData(Icons.storefront_outlined, 'ទាន់ចិត្តផេ'),
+      _TileData(Icons.account_balance_outlined, 'សេវាកម្មសាធារណៈ'),
+      _TileData(Icons.candlestick_chart_outlined, 'ជួញដូរភាគហ៊ុន'),
+      _TileData(Icons.directions_car_outlined, 'ផ្សាកម្ពុជា'),
     ];
     return Container(
       height: 112,
@@ -499,7 +514,7 @@ class _HomeScreenState extends State<HomeScreen> {
       child: const SizedBox(
         width: 200,
         child: Text(
-          'Send and receive money from abroad around the world',
+          'គណនីបញ្ញើតាមតម្រូវការ',
           style: TextStyle(
             color: Color(0xFF1A2845),
             fontSize: 16,
@@ -513,10 +528,10 @@ class _HomeScreenState extends State<HomeScreen> {
   // ---------------- Bottom navigation ----------------
   Widget _bottomNav() {
     const items = [
-      _NavData(Icons.home_rounded, 'Home'),
-      _NavData(Icons.favorite_border_rounded, 'Favorites'),
-      _NavData(Icons.chat_bubble_outline_rounded, 'LiveChat', beta: true),
-      _NavData(Icons.menu_rounded, 'Menu'),
+      _NavData(Icons.home_rounded, 'ទំព័រដើម'),
+      _NavData(Icons.favorite_border_rounded, 'កំណត់ត្រា'),
+      _NavData(Icons.chat_bubble_outline_rounded, 'សន្ទនា', beta: true),
+      _NavData(Icons.menu_rounded, 'ម៉ឺនុយ'),
     ];
     return Container(
       height: 62,
@@ -577,10 +592,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
 // ---------------- Helpers ----------------
 BoxDecoration _boxDecoration({double radius = 16}) => BoxDecoration(
-      color: _C.tile,
-      borderRadius: BorderRadius.circular(radius),
-      border: Border.all(color: _C.tileBorder, width: 1),
-    );
+  color: _C.tile,
+  borderRadius: BorderRadius.circular(radius),
+  border: Border.all(color: _C.tileBorder, width: 1),
+);
 
 class _TileData {
   final IconData icon;
@@ -728,10 +743,20 @@ class _RingPainter extends CustomPainter {
       ..strokeWidth = stroke
       ..strokeCap = StrokeCap.round;
 
-    canvas.drawArc(rect, math.pi * 0.78, math.pi * 0.95, false,
-        paint..color = _C.blue);
-    canvas.drawArc(rect, math.pi * 1.78, math.pi * 0.95, false,
-        paint..color = _C.gold);
+    canvas.drawArc(
+      rect,
+      math.pi * 0.78,
+      math.pi * 0.95,
+      false,
+      paint..color = _C.blue,
+    );
+    canvas.drawArc(
+      rect,
+      math.pi * 1.78,
+      math.pi * 0.95,
+      false,
+      paint..color = _C.gold,
+    );
   }
 
   @override

@@ -107,7 +107,7 @@ class _RegisterPinScreenState extends State<RegisterPinScreen> {
                   ),
                   const SizedBox(height: 22),
                   const Text(
-                    'Create login PIN',
+                    'បង្កើតលេខសម្ងាត់គណនីរបស់អ្នក',
                     style: TextStyle(
                       color: _Colors.text,
                       fontSize: 14,
@@ -183,8 +183,7 @@ class _TopBar extends StatelessWidget implements PreferredSizeWidget {
                     color: _Colors.text, size: 20),
               ),
               const Expanded(
-                child: Text(
-                  'REGISTER',
+                child: Text('បង្កើតលេខសម្ងាត់',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: _Colors.text,
