@@ -1,0 +1,338 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Admin - Transaction History</title>
+
+    <link rel="stylesheet" href="/css/admin-style.css">
+
+    <style>
+        .history-container {
+            width: 100%;
+            overflow-x: auto;
+            margin-top: 20px;
+            background: #fff;
+            border-radius: 8px;
+        }
+
+        .history-table {
+            width: 100%;
+            min-width: 1100px;
+            border-collapse: collapse;
+        }
+
+        .history-table th {
+            background: #f4f4f4;
+            color: #333;
+            padding: 12px;
+            border: 1px solid #ddd;
+            text-align: left;
+            white-space: nowrap;
+        }
+
+        .history-table td {
+            padding: 10px;
+            border: 1px solid #ddd;
+            color: #333;
+        }
+
+        .history-table tbody tr:hover {
+            background: #f9f9f9;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            color: white;
+            white-space: nowrap;
+        }
+
+        .badge-topup {
+            background-color: #e8873a;
+        }
+
+        .badge-transfer {
+            background-color: #4a4fb0;
+        }
+
+        .status-completed {
+            color: #2e7d32;
+            font-weight: bold;
+        }
+
+        .status-scheduled {
+            color: #b7791f;
+            font-weight: bold;
+        }
+
+        .status-failed {
+            color: #c62828;
+            font-weight: bold;
+        }
+
+        .amount-cell {
+            text-align: right;
+            font-weight: bold;
+            color: #c62828 !important;
+            white-space: nowrap;
+        }
+
+        .empty-message {
+            text-align: center;
+            padding: 30px !important;
+            color: #777 !important;
+        }
+
+        .history-summary {
+            margin-top: 10px;
+            color: #666;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="admin-layout" style="display: flex;">
+
+    <!-- ADMIN SIDEBAR -->
+    <%- include('partials/sidebar') %>
+
+    <!-- MAIN CONTENT -->
+    <main class="main-content"
+          style="flex: 1; padding: 20px; min-width: 0;">
+
+        <h2>History Transaction</h2>
+
+        <p class="history-summary">
+            Transfers and phone top-ups made from your Flutter app.
+            <strong>
+                <%= Array.isArray(transactions) ? transactions.length : 0 %>
+            </strong>
+            total transactions.
+        </p>
+
+        <!-- TRANSACTION TABLE -->
+        <div class="history-container">
+
+            <table class="history-table">
+
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Date</th>
+                        <th>Reference</th>
+                        <th>Type</th>
+                        <th>User Email</th>
+                        <th>From Account</th>
+                        <th>To</th>
+                        <th style="text-align: right;">Amount</th>
+                        <th>Purpose / Package</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+
+                    <% if (Array.isArray(transactions) && transactions.length > 0) { %>
+
+                        <% transactions.forEach(function(t) { %>
+
+                            <%
+                                // TRANSACTION AMOUNT
+                                const amt = Number(t.amount || 0);
+
+                                const validAmount = Number.isFinite(amt)
+                                    ? amt
+                                    : 0;
+
+                                const isKhr = String(t.currency || '').toUpperCase() === 'KHR';
+
+                                const amountText = isKhr
+                                    ? Math.round(validAmount).toLocaleString('en-US') + ' ៛'
+                                    : '$' + validAmount.toLocaleString('en-US', {
+                                        minimumFractionDigits: 2,
+                                        maximumFractionDigits: 2
+                                    });
+
+                                // TRANSACTION TYPE
+                                const isTopUp = t.type === 'top_up';
+
+                                // TRANSACTION STATUS
+                                const status = String(t.status || 'completed').toLowerCase();
+
+                                const isScheduled = status === 'scheduled';
+                                const isFailed = status === 'failed';
+
+                                // DATE
+                                const transactionDate = t.created_at
+                                    ? new Date(t.created_at)
+                                    : null;
+
+                                const validDate = transactionDate &&
+                                    !isNaN(transactionDate.getTime());
+
+                                // SCHEDULED DATE
+                                const scheduledDate = t.scheduled_for
+                                    ? new Date(t.scheduled_for)
+                                    : null;
+
+                                const validScheduledDate = scheduledDate &&
+                                    !isNaN(scheduledDate.getTime());
+                            %>
+
+                            <tr>
+
+                                <!-- ID -->
+                                <td>
+                                    <%= t.id || '-' %>
+                                </td>
+
+                                <!-- DATE -->
+                                <td style="white-space: nowrap;">
+                                    <%= validDate
+                                        ? transactionDate.toLocaleString('en-GB')
+                                        : '-' %>
+                                </td>
+
+                                <!-- REFERENCE -->
+                                <td style="font-family: monospace; font-size: 12px;">
+                                    <%= t.txn_ref || '-' %>
+                                </td>
+
+                                <!-- TYPE -->
+                                <td>
+                                    <% if (isTopUp) { %>
+
+                                        <span class="badge badge-topup">
+                                            Phone Top-up
+                                        </span>
+
+                                    <% } else { %>
+
+                                        <span class="badge badge-transfer">
+                                            Own Transfer
+                                        </span>
+
+                                    <% } %>
+                                </td>
+
+                                <!-- USER EMAIL -->
+                                <td>
+                                    <%= t.user_email || '-' %>
+                                </td>
+
+                                <!-- FROM ACCOUNT -->
+                                <td>
+                                    <strong>
+                                        <%= t.from_account || '-' %>
+                                    </strong>
+
+                                    <% if (t.from_name) { %>
+                                        <br>
+                                        <small style="color: #666;">
+                                            <%= t.from_name %>
+                                        </small>
+                                    <% } %>
+                                </td>
+
+                                <!-- TO ACCOUNT -->
+                                <td>
+
+                                    <% if (isTopUp) { %>
+
+                                        <strong>
+                                            <%= t.to_name || t.to_account || '-' %>
+                                        </strong>
+
+                                    <% } else { %>
+
+                                        <strong>
+                                            <%= t.to_account || '-' %>
+                                        </strong>
+
+                                        <% if (t.to_name) { %>
+                                            <br>
+                                            <small style="color: #666;">
+                                                <%= t.to_name %>
+                                            </small>
+                                        <% } %>
+
+                                    <% } %>
+
+                                </td>
+
+                                <!-- AMOUNT -->
+                                <td class="amount-cell">
+                                    -<%= amountText %>
+                                </td>
+
+                                <!-- PURPOSE / PACKAGE -->
+                                <td>
+                                    <%= t.purpose || t.package || '-' %>
+                                </td>
+
+                                <!-- STATUS -->
+                                <td>
+
+                                    <% if (isScheduled) { %>
+
+                                        <span class="status-scheduled">
+                                            Scheduled
+                                        </span>
+
+                                        <% if (validScheduledDate) { %>
+                                            <br>
+                                            <small>
+                                                <%= scheduledDate.toLocaleDateString('en-GB') %>
+                                            </small>
+                                        <% } %>
+
+                                    <% } else if (isFailed) { %>
+
+                                        <span class="status-failed">
+                                            Failed
+                                        </span>
+
+                                    <% } else { %>
+
+                                        <span class="status-completed">
+                                            <%= status.charAt(0).toUpperCase() + status.slice(1) %>
+                                        </span>
+
+                                    <% } %>
+
+                                </td>
+
+                            </tr>
+
+                        <% }); %>
+
+                    <% } else { %>
+
+                        <!-- EMPTY TRANSACTION MESSAGE -->
+                        <tr>
+                            <td colspan="10" class="empty-message">
+                                No transactions found.
+                            </td>
+                        </tr>
+
+                    <% } %>
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </main>
+
+</div>
+
+</body>
+</html>

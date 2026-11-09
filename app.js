@@ -4,12 +4,13 @@ const path = require('path');
 const fs = require('fs');
 const cors = require('cors');
 const multer = require('multer');
+const bcrypt = require('bcryptjs');
+const rateLimit = require('express-rate-limit');
 
 // Import MySQL Pool Connection and connectDB function
 const { connectDB, pool } = require('./config/db');
 const apiRoutes = require('./routes/apiRoutes');
 const otpAuthRoutes = require('./routes/otpAuth');
-const adminController = require('./controllers/adminController');
 
 const app = express();
 
@@ -70,6 +71,7 @@ app.use('/api/v1/auth', otpAuthRoutes);
 // ==========================================
 // 📱 FLUTTER API: REGISTER PROFILE (with photo)
 // Field name for the image must be "photo"
+// Saves ALL profile fields + photo into table: user_profiles
 // ==========================================
 app.post(
   '/api/v1/profile/register',
@@ -81,13 +83,121 @@ app.post(
       next();
     });
   },
-  adminController.registerProfile
+  async (req, res) => {
+    try {
+      console.log('📥 Profile request received:', req.body);
+      const {
+        email, firstName, lastName, gender, birthDate,
+        idType, idNumber, idExpiryDate, address,
+      } = req.body;
+
+      if (!email || !firstName || !lastName || !idNumber) {
+        return res.status(400).json({ success: false, message: 'Missing required fields' });
+      }
+
+      const photoPath = req.file ? `/uploads/profiles/${req.file.filename}` : null;
+      if (req.file) console.log('📷 Photo received:', req.file.filename);
+
+      const values = [
+        firstName,
+        lastName,
+        gender || null,
+        birthDate || null,
+        idType || null,
+        idNumber,
+        idExpiryDate || null,
+        address || null,
+      ];
+
+      // Same email submitting again -> update the row instead of duplicating it
+      const [existing] = await pool.execute(
+        'SELECT id FROM user_profiles WHERE email = ? LIMIT 1',
+        [email]
+      );
+
+      if (existing.length > 0) {
+        await pool.execute(
+          `UPDATE user_profiles SET
+             first_name = ?, last_name = ?, gender = ?, birth_date = ?,
+             id_type = ?, id_number = ?, id_expiry_date = ?, address = ?,
+             photo_path = COALESCE(?, photo_path),
+             created_at = NOW()
+           WHERE id = ?`,
+          [...values, photoPath, existing[0].id]
+        );
+      } else {
+        await pool.execute(
+          `INSERT INTO user_profiles
+             (email, first_name, last_name, gender, birth_date,
+              id_type, id_number, id_expiry_date, address, photo_path)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [email, ...values, photoPath]
+        );
+      }
+
+      console.log('✅ Profile saved for', email);
+      res.json({ success: true, message: 'Registration saved' });
+    } catch (e) {
+      console.error('❌ Register profile error:', e.message);
+      res.status(500).json({ success: false, message: 'Server error: ' + e.message });
+    }
+  }
 );
 
 // ==========================================
 // 📱 FLUTTER API: SET LOGIN PIN
+// Saves the PIN (hashed, never plain text) on the user's profile row
 // ==========================================
+const DEFAULT_ACCOUNT_NUMBER = '1000804344'; // placeholder, same value as before
+
 app.post('/api/v1/register/set-pin', async (req, res) => {
+  const { email, pin } = req.body;
+
+  if (!email || !pin) {
+    return res.status(400).json({ success: false, message: 'Email and PIN are required' });
+  }
+  if (!/^\d{4,6}$/.test(String(pin))) {
+    return res.status(400).json({ success: false, message: 'PIN must be 4 to 6 digits' });
+  }
+
+  try {
+    const pinHash = await bcrypt.hash(String(pin), 10);
+    const [result] = await pool.execute(
+      'UPDATE user_profiles SET pin_hash = ? WHERE email = ?',
+      [pinHash, email]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Profile not found. Please fill in your profile first.',
+      });
+    }
+
+    console.log('🔐 PIN saved for', email);
+    return res.status(200).json({
+      success: true,
+      message: 'PIN set successfully',
+      accountNumber: DEFAULT_ACCOUNT_NUMBER,
+      email: email
+    });
+  } catch (err) {
+    console.error("Set PIN Error:", err.message);
+    return res.status(500).json({ success: false, message: 'Server error: ' + err.message });
+  }
+});
+
+// ==========================================
+// 📱 FLUTTER API: LOGIN  (email + PIN created at registration)
+// POST /api/v1/auth/login   body: { email, pin }
+// ==========================================
+const loginLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10, // 10 attempts per minute per IP
+  message: { success: false, message: 'Too many login attempts. Please wait a minute.' },
+});
+
+app.post('/api/v1/auth/login', loginLimiter, async (req, res) => {
   const { email, pin } = req.body;
 
   if (!email || !pin) {
@@ -95,18 +205,97 @@ app.post('/api/v1/register/set-pin', async (req, res) => {
   }
 
   try {
-    // You can optionally save or update the PIN in your database here:
-    // await pool.execute('UPDATE user_profiles SET pin = ? WHERE email = ?', [pin, email]);
+    const [rows] = await pool.execute(
+      'SELECT * FROM user_profiles WHERE email = ? LIMIT 1',
+      [email]
+    );
+    const user = rows[0];
 
-    return res.status(200).json({
+    // Same message for "no such user" and "wrong PIN" so nobody can probe emails
+    if (!user || !user.pin_hash) {
+      return res.status(401).json({ success: false, message: 'Incorrect email or PIN' });
+    }
+
+    const ok = await bcrypt.compare(String(pin), user.pin_hash);
+    if (!ok) {
+      console.log('⚠️ Failed login for', email);
+      return res.status(401).json({ success: false, message: 'Incorrect email or PIN' });
+    }
+
+    console.log('✅ Login success for', email);
+    return res.json({
       success: true,
-      message: 'PIN set successfully',
-      accountNumber: '1000804344',
-      email: email
+      message: 'Login successful',
+      accountNumber: DEFAULT_ACCOUNT_NUMBER,
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        gender: user.gender,
+        birthDate: user.birth_date,
+        idType: user.id_type,
+        idNumber: user.id_number,
+        idExpiryDate: user.id_expiry_date,
+        address: user.address,
+        photoPath: user.photo_path,
+      },
     });
   } catch (err) {
-    console.error("Set PIN Error:", err.message);
+    console.error('Login Error:', err.message);
     return res.status(500).json({ success: false, message: 'Server error: ' + err.message });
+  }
+});
+
+// ==========================================
+// 📱 FLUTTER API: SAVE A TRANSACTION (own transfer / phone top-up)
+// POST /api/v1/transactions   (JSON)
+// Safe to send twice: the same txnRef is only stored once.
+// ==========================================
+app.post('/api/v1/transactions', async (req, res) => {
+  try {
+    const {
+      txnRef, email, type, fromAccount, fromName, toAccount, toName,
+      amount, currency, purpose, status, scheduledFor,
+    } = req.body;
+
+    const amt = Number(amount);
+    if (
+      !txnRef || !fromAccount ||
+      !['own_transfer', 'top_up'].includes(type) ||
+      !['KHR', 'USD'].includes(currency) ||
+      !Number.isFinite(amt) || amt <= 0
+    ) {
+      return res.status(400).json({ success: false, message: 'Missing or invalid fields' });
+    }
+
+    await pool.execute(
+      `INSERT INTO transaction_history
+         (txn_ref, user_email, type, from_account, from_name, to_account, to_name,
+          amount, currency, purpose, status, scheduled_for)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE txn_ref = txn_ref`,
+      [
+        txnRef,
+        email || null,
+        type,
+        fromAccount,
+        fromName || null,
+        toAccount || null,
+        toName || null,
+        amt,
+        currency,
+        purpose || null,
+        status === 'scheduled' ? 'scheduled' : 'completed',
+        scheduledFor || null,
+      ]
+    );
+
+    console.log(`🧾 Transaction saved: ${txnRef} (${type}) ${amt} ${currency}`);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('❌ Save transaction error:', err.message);
+    res.status(500).json({ success: false, message: 'Server error: ' + err.message });
   }
 });
 
@@ -374,9 +563,26 @@ app.get('/admin/otp-logs', async (req, res) => {
 app.get('/admin/registered', async (req, res) => {
   try {
     const [profiles] = await pool.execute(
-      'SELECT * FROM user_profiles ORDER BY id DESC'
+      'SELECT * FROM user_profiles ORDER BY created_at DESC, id DESC'
     );
     res.render('admin/registered', { pageTitle: 'Users Registered', profiles });
+  } catch (err) {
+    res.status(500).send("Database Error: " + err.message);
+  }
+});
+
+// ==========================================
+// ADMIN: HISTORY TRANSACTION (from Flutter app)
+// ==========================================
+app.get('/admin/history-transactions', async (req, res) => {
+  try {
+    const [transactions] = await pool.execute(
+      'SELECT * FROM transaction_history ORDER BY created_at DESC, id DESC LIMIT 500'
+    );
+    res.render('admin/history-transactions', {
+      pageTitle: 'History Transaction',
+      transactions,
+    });
   } catch (err) {
     res.status(500).send("Database Error: " + err.message);
   }
@@ -395,8 +601,44 @@ app.listen(PORT, async () => {
   console.log(`👉 Verify OTP:      POST http://localhost:${PORT}/api/v1/auth/verify-otp`);
   console.log(`👉 Register Profile: POST http://localhost:${PORT}/api/v1/profile/register`);
   console.log(`👉 Set PIN:         POST http://localhost:${PORT}/api/v1/register/set-pin`);
+  console.log(`👉 Login:           POST http://localhost:${PORT}/api/v1/auth/login`);
   console.log(`👉 OTP Logs:        http://localhost:${PORT}/admin/otp-logs`);
   console.log(`👉 Registered:      http://localhost:${PORT}/admin/registered`);
+  console.log(`👉 History Txn:     http://localhost:${PORT}/admin/history-transactions`);
+  console.log(`👉 Save Txn:        POST http://localhost:${PORT}/api/v1/transactions`);
 
   await connectDB();
+
+  // Add the pin_hash column automatically if it does not exist yet
+  try {
+    await pool.execute('ALTER TABLE user_profiles ADD COLUMN pin_hash VARCHAR(100) NULL');
+    console.log('🛠️  Added column user_profiles.pin_hash');
+  } catch (e) {
+    if (e.code !== 'ER_DUP_FIELDNAME') console.error('pin_hash migration:', e.message);
+  }
+
+  // Create the transaction_history table automatically if it does not exist
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS transaction_history (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        txn_ref VARCHAR(64) NOT NULL UNIQUE,
+        user_email VARCHAR(255) NULL,
+        type VARCHAR(20) NOT NULL,
+        from_account VARCHAR(50) NOT NULL,
+        from_name VARCHAR(150) NULL,
+        to_account VARCHAR(80) NULL,
+        to_name VARCHAR(150) NULL,
+        amount DECIMAL(18,2) NOT NULL,
+        currency VARCHAR(3) NOT NULL,
+        purpose VARCHAR(255) NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'completed',
+        scheduled_for DATE NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      ) CHARACTER SET utf8mb4
+    `);
+    console.log('🛠️  transaction_history table ready');
+  } catch (e) {
+    console.error('transaction_history table:', e.message);
+  }
 });
