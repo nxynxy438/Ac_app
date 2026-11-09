@@ -1,11 +1,12 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
-import 'register_pin_screen.dart'; // <-- NEW: PIN screen
-import 'user_session.dart'; // <-- NEW: saves the data on the device
+import 'register_pin_screen.dart';
+import 'user_session.dart';
 
 class RegisterProfileScreen extends StatefulWidget {
   final String email;
@@ -28,10 +29,9 @@ class _RegisterProfileScreenState extends State<RegisterProfileScreen> {
   static const Color borderGrey = Color(0xFFBDBDBD);
   static const Color hintGrey = Color(0xFF9E9E9E);
 
-  // ⚠️ CHANGE THIS to match the same server address you use for request-otp:
-  //   Android emulator : http://10.0.2.2:3000
-  //   iOS simulator    : http://localhost:3000
-  //   Real phone       : http://<your PC IP>:3000   (e.g. http://192.168.1.5:3000)
+  // Android emulator : http://10.0.2.2:3000
+  // iOS simulator    : http://localhost:3000
+  // Real phone       : http://<your PC IP>:3000   (e.g. http://192.168.1.5:3000)
   static const String baseUrl = 'http://10.0.2.2:3000';
 
   final _firstNameCtrl = TextEditingController();
@@ -48,13 +48,13 @@ class _RegisterProfileScreenState extends State<RegisterProfileScreen> {
 
   final List<String> _genders = ['ប្រុស', 'ស្រី'];
   final List<String> _idTypes = [
-  'អត្តសញ្ញាណប័ណ្ណសញ្ជាតិខ្មែរ', // National Identity Card
-  'លិខិតឆ្លងដែន',                // Passport
-  'សៀវភៅគ្រួសារ',                // Family Book
-  'ប័ណ្ណសម្គាល់ខ្លួនបុគ្គលិកធនាគារ អេស៊ីលីដា', // ACLEDA Bank ID Card
-  'អត្តសញ្ញាណប័ណ្ណព្រះសង្ឃ',         // Monk Identification Card
-  'សំបុត្រកំណើត',                // Birth Certificate
-  'លិខិតបញ្ជាក់អត្តសញ្ញាណមានរូបថត',    // Identity Certificate with Photo
+    'អត្តសញ្ញាណប័ណ្ណសញ្ជាតិខ្មែរ', // National Identity Card
+    'លិខិតឆ្លងដែន', // Passport
+    'សៀវភៅគ្រួសារ', // Family Book
+    'ប័ណ្ណសម្គាល់ខ្លួនបុគ្គលិកធនាគារ អេស៊ីលីដា', // ACLEDA Bank ID Card
+    'អត្តសញ្ញាណប័ណ្ណព្រះសង្ឃ', // Monk Identification Card
+    'សំបុត្រកំណើត', // Birth Certificate
+    'លិខិតបញ្ជាក់អត្តសញ្ញាណមានរូបថត', // Identity Certificate with Photo
   ];
   final List<String> _addresses = [
     'ភ្នំពេញ',
@@ -153,8 +153,13 @@ class _RegisterProfileScreenState extends State<RegisterProfileScreen> {
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
   void _toast(String msg, Color color) {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), backgroundColor: color),
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: color,
+        duration: const Duration(seconds: 4),
+      ),
     );
   }
 
@@ -162,25 +167,38 @@ class _RegisterProfileScreenState extends State<RegisterProfileScreen> {
   Future<void> _submit() async {
     if (_loading) return;
 
+    // Tell the user EXACTLY what is missing
     if (widget.email.trim().isEmpty) {
-      _toast('Email is missing. Please go back and verify your email.', Colors.red);
+      _toast(
+        'Email is missing. Open this screen from OTP > Register details, not directly.',
+        Colors.red,
+      );
       return;
     }
-    if (_firstNameCtrl.text.trim().isEmpty ||
-        _lastNameCtrl.text.trim().isEmpty ||
-        _idType == null ||
-        _idNumberCtrl.text.trim().isEmpty) {
-      _toast('Please fill in all required fields', Colors.red);
+    if (_firstNameCtrl.text.trim().isEmpty) {
+      _toast('Please enter first name', Colors.red);
+      return;
+    }
+    if (_lastNameCtrl.text.trim().isEmpty) {
+      _toast('Please enter last name', Colors.red);
+      return;
+    }
+    if (_idType == null) {
+      _toast('Please select the ID type', Colors.red);
+      return;
+    }
+    if (_idNumberCtrl.text.trim().isEmpty) {
+      _toast('Please enter the ID number', Colors.red);
       return;
     }
 
     setState(() => _loading = true);
 
     try {
-      final request = http.MultipartRequest(
-        'POST',
-        Uri.parse('$baseUrl/api/v1/profile/register'),
-      );
+      final uri = Uri.parse('$baseUrl/api/v1/profile/register');
+      debugPrint('➡️ Submitting profile to $uri');
+
+      final request = http.MultipartRequest('POST', uri);
 
       request.fields.addAll({
         'email': widget.email.trim(),
@@ -194,7 +212,7 @@ class _RegisterProfileScreenState extends State<RegisterProfileScreen> {
         'address': _address ?? '',
       });
 
-      // The field name "photo" must match upload.single('photo') in app.js
+      // The field name "photo" must match profileUpload.single('photo') in app.js
       if (_profileImage != null) {
         request.files.add(
           await http.MultipartFile.fromPath('photo', _profileImage!.path),
@@ -204,14 +222,21 @@ class _RegisterProfileScreenState extends State<RegisterProfileScreen> {
       final streamed =
           await request.send().timeout(const Duration(seconds: 30));
       final response = await http.Response.fromStream(streamed);
-      final data = jsonDecode(response.body);
+      debugPrint('⬅️ Server replied ${response.statusCode}: ${response.body}');
+
+      Map<String, dynamic> data = {};
+      try {
+        data = jsonDecode(response.body) as Map<String, dynamic>;
+      } catch (_) {
+        // server returned something that is not JSON
+      }
 
       if (!mounted) return;
 
       if (response.statusCode == 200 && data['success'] == true) {
         _toast('Profile saved successfully', Colors.green);
 
-        // NEW: keep everything the user filled in on the device
+        // Keep everything the user filled in on the device
         await UserSession.instance.saveProfile(
           email: widget.email.trim(),
           firstName: _firstNameCtrl.text.trim(),
@@ -234,10 +259,21 @@ class _RegisterProfileScreenState extends State<RegisterProfileScreen> {
           ),
         );
       } else {
-        _toast(data['message']?.toString() ?? 'Failed to save profile',
-            Colors.red);
+        final msg = data['message']?.toString() ??
+            'Server error ${response.statusCode}';
+        _toast('Failed: $msg', Colors.red);
       }
+    } on SocketException {
+      if (mounted) {
+        _toast(
+          'Cannot reach the server at $baseUrl. Is "npm run dev" running?',
+          Colors.red,
+        );
+      }
+    } on TimeoutException {
+      if (mounted) _toast('Server took too long to answer (30s)', Colors.red);
     } catch (e) {
+      debugPrint('❌ Submit error: $e');
       if (mounted) _toast('Error: $e', Colors.red);
     } finally {
       if (mounted) setState(() => _loading = false);

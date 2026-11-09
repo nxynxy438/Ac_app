@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
-import 'user_session.dart';
+
+import 'account_store.dart';
+import 'transaction_history.dart';
+import 'ui_common.dart';
 
 enum TelecomOperator {
   smart,
@@ -8,6 +11,8 @@ enum TelecomOperator {
 }
 
 class MobileTopUpScreen extends StatefulWidget {
+  // Kept so existing callers (Home screen) still compile.
+  // The screen now reads real balances from AccountStore.
   final String? accountNumber;
   final String? balance;
 
@@ -22,6 +27,8 @@ class MobileTopUpScreen extends StatefulWidget {
 }
 
 class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
+  final AccountStore _store = AccountStore.instance;
+
   int _selectedTab = 0; // 0: ស្វ័យប្រវត្តិ, 1: ទិញកាត
   final TextEditingController _phoneController =
       TextEditingController(text: '098 965 454');
@@ -30,38 +37,44 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
   double? _selectedQuickAmount;
   int? _selectedPackageIndex;
   bool _showMoreAmounts = false;
+  bool _isLoading = false;
 
-  String get _displayAccountNumber {
-    if (widget.accountNumber != null && widget.accountNumber!.isNotEmpty) {
-      return widget.accountNumber!;
-    }
-    final s = UserSession.instance;
-    if (s.accountNumber.isNotEmpty) {
-      return s.accountNumber;
-    }
-    return '3863-05323191-14';
-  }
+  Account? _fromAccount;
 
-  String get _displayBalance {
-    if (widget.balance != null && widget.balance!.isNotEmpty) {
-      return widget.balance!;
-    }
-    final s = UserSession.instance;
-    return '${s.balance.toStringAsFixed(2)} ដុល្លារ';
-  }
+  // Same accounts as the Accounts screen and the Own Transfer screen
+  List<Account> get _allAccounts => _store.accounts;
 
   @override
   void initState() {
     super.initState();
+
+    final all = _allAccounts;
+    if (all.isNotEmpty) {
+      // Default: a dollar account that has money, else any account with money
+      _fromAccount = all.firstWhere(
+        (a) => a.currency == 'USD' && a.balance > 0,
+        orElse: () => all.firstWhere(
+          (a) => a.balance > 0,
+          orElse: () => all.first,
+        ),
+      );
+    }
+
     _phoneController.addListener(() {
-      setState(() {});
+      if (!mounted) return;
+      setState(() {
+        // A different operator can have fewer packages; drop a stale selection
+        if (_selectedPackageIndex != null &&
+            _selectedPackageIndex! >= _currentDataPackages.length) {
+          _selectedPackageIndex = null;
+        }
+      });
     });
   }
 
   TelecomOperator get _detectedOperator {
     final clean = _phoneController.text.replaceAll(RegExp(r'\D'), '');
 
-    // Cellcard: 012 (and all Cellcard prefixes: 011, 014, 017, 061, 076, 077, 078, 079, 085, 089, 092, 095, 099)
     if (clean.startsWith('012') ||
         clean.startsWith('011') ||
         clean.startsWith('014') ||
@@ -79,7 +92,6 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
       return TelecomOperator.cellcard;
     }
 
-    // Metfone: 097, 088 (and all Metfone prefixes: 031, 060, 066, 067, 068, 071, 090)
     if (clean.startsWith('097') ||
         clean.startsWith('088') ||
         clean.startsWith('031') ||
@@ -92,23 +104,18 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
       return TelecomOperator.metfone;
     }
 
-    // Smart: 096, 098, 081, 010 (and all Smart prefixes: 015, 016, 069, 070, 086, 087, 093)
-    if (clean.startsWith('096') ||
-        clean.startsWith('098') ||
-        clean.startsWith('081') ||
-        clean.startsWith('010') ||
-        clean.startsWith('015') ||
-        clean.startsWith('016') ||
-        clean.startsWith('069') ||
-        clean.startsWith('070') ||
-        clean.startsWith('086') ||
-        clean.startsWith('087') ||
-        clean.startsWith('093')) {
-      return TelecomOperator.smart;
-    }
-
-    // Default operator
     return TelecomOperator.smart;
+  }
+
+  String get _operatorName {
+    switch (_detectedOperator) {
+      case TelecomOperator.cellcard:
+        return 'Cellcard';
+      case TelecomOperator.metfone:
+        return 'Metfone';
+      case TelecomOperator.smart:
+        return 'Smart';
+    }
   }
 
   List<Map<String, dynamic>> get _currentDataPackages {
@@ -120,6 +127,7 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
             'bannerColor': const Color(0xFFF99D1C),
             'data': '20GB',
             'priceInfo': '1.5\$ / 7days',
+            'price': 1.5,
             'feature': 'Unlimited Play',
           },
           {
@@ -127,6 +135,7 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
             'bannerColor': const Color(0xFFEA580C),
             'data': '35GB',
             'priceInfo': '2\$ / 7days',
+            'price': 2.0,
             'feature': 'Extra Night Data',
           },
           {
@@ -134,6 +143,7 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
             'bannerColor': const Color(0xFFC2410C),
             'data': '100GB',
             'priceInfo': '6\$ / 30days',
+            'price': 6.0,
             'feature': 'High Speed Data',
           },
         ];
@@ -144,6 +154,7 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
             'bannerColor': const Color(0xFFE50019),
             'data': '20GB',
             'priceInfo': '1.5\$ / 7days',
+            'price': 1.5,
             'feature': 'TikTok + YouTube Free',
           },
           {
@@ -151,6 +162,7 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
             'bannerColor': const Color(0xFFB91C1C),
             'data': '32GB',
             'priceInfo': '2\$ / 7days',
+            'price': 2.0,
             'feature': 'High Speed 4G',
           },
           {
@@ -158,17 +170,18 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
             'bannerColor': const Color(0xFF991B1B),
             'data': '95GB',
             'priceInfo': '6\$ / 30days',
+            'price': 6.0,
             'feature': 'Unlimited Social',
           },
         ];
       case TelecomOperator.smart:
-      default:
         return [
           {
             'title': 'Smart 5G Data 1.5',
             'bannerColor': const Color(0xFFEAB308),
             'data': '20GB',
             'priceInfo': '1.5\$ / 7days',
+            'price': 1.5,
             'feature': 'Cybersecurity',
           },
           {
@@ -176,6 +189,7 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
             'bannerColor': const Color(0xFF059669),
             'data': '30GB',
             'priceInfo': '2\$ / 7days',
+            'price': 2.0,
             'feature': 'Cybersecurity',
           },
           {
@@ -183,6 +197,7 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
             'bannerColor': const Color(0xFFE11D48),
             'data': '90GB',
             'priceInfo': '6\$ / 30days',
+            'price': 6.0,
             'feature': 'Cybersecurity',
           },
           {
@@ -190,6 +205,7 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
             'bannerColor': const Color(0xFF2563EB),
             'data': '150GB',
             'priceInfo': '10\$ / 30days',
+            'price': 10.0,
             'feature': 'Cybersecurity + Call',
           },
         ];
@@ -212,6 +228,246 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
     super.dispose();
   }
 
+  // ---------- Choose which account pays ----------
+  Future<void> _pickAccount() async {
+    final options = _allAccounts;
+    if (options.isEmpty) {
+      _showErrorSnackBar('គ្មានគណនី');
+      return;
+    }
+
+    final picked = await showModalBottomSheet<Account>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 14),
+            const Text(
+              'ជ្រើសរើសគណនី',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF1E293B),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                children: [
+                  for (final a in options)
+                    ListTile(
+                      leading: Icon(
+                        a.kind == AccountKind.wallet
+                            ? Icons.account_balance_wallet_outlined
+                            : Icons.account_balance_outlined,
+                        color: const Color(0xFF13253E),
+                      ),
+                      title: Text(
+                        a.number,
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      subtitle: Text(a.name),
+                      trailing: Text(
+                        '${a.balanceText} ${a.symbol}',
+                        style: const TextStyle(
+                          color: Color(0xFF2F4FA3),
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      selected: _fromAccount?.id == a.id,
+                      onTap: () => Navigator.pop(ctx, a),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+
+    if (picked != null && mounted) {
+      setState(() => _fromAccount = picked);
+    }
+  }
+
+  // ---------- Pay: deduct from chosen account + save to history ----------
+  Future<void> _processTopUp() async {
+    FocusScope.of(context).unfocus();
+
+    final from = _fromAccount;
+    if (from == null) {
+      _showErrorSnackBar('សូមជ្រើសរើសគណនី');
+      return;
+    }
+
+    final phoneNumber = _phoneController.text.trim();
+    if (phoneNumber.isEmpty) {
+      _showErrorSnackBar('សូមបញ្ចូលលេខទូរស័ព្ទ');
+      return;
+    }
+
+    double amount = 0.0;
+    String packageName = '';
+
+    final packages = _currentDataPackages;
+    final pkgIndex = _selectedPackageIndex;
+    if (pkgIndex != null && pkgIndex < packages.length) {
+      amount = (packages[pkgIndex]['price'] as num).toDouble();
+      packageName = packages[pkgIndex]['title'] as String;
+    } else {
+      final amountText = _amountController.text.trim();
+      if (amountText.isEmpty) {
+        _showErrorSnackBar('សូមបញ្ចូលចំនួនទឹកប្រាក់ ឬជ្រើសរើសកញ្ចប់');
+        return;
+      }
+      amount = double.tryParse(amountText) ?? 0.0;
+      if (amount < 1 || amount > 50) {
+        _showErrorSnackBar('ចំនួនទឹកប្រាក់ត្រូវនៅចន្លោះ \$1 ដល់ \$50');
+        return;
+      }
+    }
+
+    if (_store.topUpCost(from, amount) > from.balance) {
+      _showErrorSnackBar('ទឹកប្រាក់ក្នុងគណនីមិនគ្រប់គ្រាន់ទេ!');
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    // Simulate network delay
+    await Future.delayed(const Duration(milliseconds: 800));
+    if (!mounted) return;
+
+    final error = _store.topUp(
+      from: from,
+      amount: amount,
+      phone: phoneNumber,
+      operatorName: _operatorName,
+      packageName: packageName,
+    );
+
+    setState(() => _isLoading = false);
+
+    if (error != null) {
+      _showErrorSnackBar(error);
+      return;
+    }
+
+    _showSuccess(from, amount, phoneNumber, packageName);
+  }
+
+  void _showSuccess(
+    Account from,
+    double amount,
+    String phone,
+    String packageName,
+  ) {
+    final shown = amount.truncateToDouble() == amount
+        ? amount.toStringAsFixed(0)
+        : amount.toStringAsFixed(2);
+    final cost = _store.topUpCost(from, amount);
+
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.check_circle, color: Colors.green, size: 28),
+            SizedBox(width: 8),
+            Text('ជោគជ័យ',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _kv('ទៅលេខ', phone),
+            _kv('ចំនួន', '\$$shown'),
+            if (from.currency == 'KHR')
+              _kv('ត្រូវកាត់ពីគណនី', '${AccountStore.format(cost, 'KHR')} ៛'),
+            if (packageName.isNotEmpty) _kv('កញ្ចប់', packageName),
+            _kv('ពីគណនី', from.number),
+            _kv('សមតុល្យនៅសល់', '${from.balanceText} ${from.symbol}'),
+          ],
+        ),
+        actionsAlignment: MainAxisAlignment.spaceBetween,
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              if (!mounted) return;
+              Navigator.pushReplacement(
+                context,
+                slideRoute(TransactionHistoryScreen(accountId: from.id)),
+              );
+            },
+            child: const Text(
+              'មើលប្រវត្តិ',
+              style: TextStyle(color: Color(0xFF2F4FA3)),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              if (!mounted) return;
+              Navigator.pop(context, true);
+            },
+            child: const Text(
+              'យល់ព្រម',
+              style: TextStyle(
+                color: Color(0xFF13253E),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _kv(String k, String v) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3),
+        child: Row(
+          children: [
+            Text(k, style: const TextStyle(color: Color(0xFF64748B))),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                v,
+                textAlign: TextAlign.right,
+                style: const TextStyle(
+                  color: Color(0xFF1E293B),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.red.shade700,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+  }
+
+  // ---------- Build ----------
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -220,14 +476,9 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
         bottom: false,
         child: Column(
           children: [
-            // Top App Bar
             _buildCustomAppBar(),
-
-            // Telecom Operator Logo Header
             _buildOperatorHeader(),
             const SizedBox(height: 16),
-
-            // White Rounded Bottom Card (Scrollable Body)
             Expanded(
               child: Container(
                 width: double.infinity,
@@ -249,19 +500,23 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Segmented Tab Toggle (ស្វ័យប្រវត្តិ / ទិញកាត)
                         _buildSegmentedTab(),
                         const SizedBox(height: 18),
-
-                        // Source Account Card / Selector
                         _buildAccountSelector(),
+                        if (_fromAccount?.currency == 'KHR')
+                          Padding(
+                            padding: const EdgeInsets.only(top: 6, left: 4),
+                            child: Text(
+                              'អត្រាប្តូរប្រាក់: 1\$ = ៛${AccountStore.format(AccountStore.khrPerUsd, 'KHR')}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF64748B),
+                              ),
+                            ),
+                          ),
                         const SizedBox(height: 14),
-
-                        // Phone Number Input
                         _buildPhoneNumberField(),
                         const SizedBox(height: 20),
-
-                        // Section 1: Main Balance Top Up
                         const Text(
                           'សម្រាប់ទឹកប្រាក់ក្នុងគណនីគោល',
                           style: TextStyle(
@@ -271,16 +526,10 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
                           ),
                         ),
                         const SizedBox(height: 10),
-
-                        // Custom Amount Field
                         _buildCustomAmountField(),
                         const SizedBox(height: 12),
-
-                        // Preset Quick Amounts Grid
                         _buildQuickAmountRow(),
                         const SizedBox(height: 10),
-
-                        // Expand/Collapse Chevron Button
                         Center(
                           child: InkWell(
                             onTap: () {
@@ -307,8 +556,6 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
                           ),
                         ),
                         const SizedBox(height: 20),
-
-                        // Section 2: Data Package Subscription
                         const Text(
                           'សម្រាប់ភ្ជាប់កញ្ចប់',
                           style: TextStyle(
@@ -318,8 +565,6 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
                           ),
                         ),
                         const SizedBox(height: 12),
-
-                        // Horizontal Data Package List
                         _buildDataPackageList(),
                         const SizedBox(height: 16),
                       ],
@@ -328,16 +573,12 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
                 ),
               ),
             ),
-
-            // Bottom Confirmation Button
             _buildBottomActionButton(),
           ],
         ),
       ),
     );
   }
-
-  // --- WIDGET COMPONENTS ---
 
   Widget _buildCustomAppBar() {
     return Padding(
@@ -347,7 +588,6 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
         children: [
           Row(
             children: [
-              // Circle Back Button
               InkWell(
                 onTap: () => Navigator.maybePop(context),
                 borderRadius: BorderRadius.circular(20),
@@ -366,10 +606,8 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
                 ),
               ),
               const SizedBox(width: 14),
-
-              // Title with Info Icon
-              Row(
-                children: const [
+              const Row(
+                children: [
                   Text(
                     'បញ្ចូលលុយទូរស័ព្ទ',
                     style: TextStyle(
@@ -388,8 +626,6 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
               ),
             ],
           ),
-
-          // ACLEDA Golden Mythic Bird Logo Icon
           SizedBox(
             width: 34,
             height: 34,
@@ -420,7 +656,6 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
         brandColor = const Color(0xFFE50019);
         break;
       case TelecomOperator.smart:
-      default:
         name = 'Smart';
         assetPath = 'assets/smart.png';
         brandColor = const Color(0xFF039855);
@@ -429,7 +664,6 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
 
     return Column(
       children: [
-        // Operator Circular Avatar with animated transition
         AnimatedContainer(
           duration: const Duration(milliseconds: 250),
           width: 82,
@@ -440,7 +674,7 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
             border: Border.all(color: Colors.white, width: 2.5),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.25),
+                color: Colors.black.withValues(alpha: 0.25),
                 blurRadius: 10,
                 offset: const Offset(0, 4),
               ),
@@ -492,7 +726,6 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
       ),
       child: Row(
         children: [
-          // Tab 1: ស្វ័យប្រវត្តិ
           Expanded(
             child: GestureDetector(
               onTap: () => setState(() => _selectedTab = 0),
@@ -507,7 +740,7 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
                   boxShadow: _selectedTab == 0
                       ? [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.12),
+                            color: Colors.black.withValues(alpha: 0.12),
                             blurRadius: 6,
                             offset: const Offset(0, 2),
                           )
@@ -530,7 +763,6 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
               ),
             ),
           ),
-          // Tab 2: ទិញកាត
           Expanded(
             child: GestureDetector(
               onTap: () => setState(() => _selectedTab = 1),
@@ -545,7 +777,7 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
                   boxShadow: _selectedTab == 1
                       ? [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.12),
+                            color: Colors.black.withValues(alpha: 0.12),
                             blurRadius: 6,
                             offset: const Offset(0, 2),
                           )
@@ -573,57 +805,63 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
     );
   }
 
+  // Tap to choose which account pays
   Widget _buildAccountSelector() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          // Label
-          const Text(
-            'ពីគណនី',
-            style: TextStyle(
-              fontSize: 13,
-              color: Color(0xFF64748B),
-              fontWeight: FontWeight.w500,
+    final acc = _fromAccount;
+    return InkWell(
+      onTap: _pickAccount,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            const Text(
+              'ពីគណនី',
+              style: TextStyle(
+                fontSize: 13,
+                color: Color(0xFF64748B),
+                fontWeight: FontWeight.w500,
+              ),
             ),
-          ),
-          const Spacer(),
-          // Account Info
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                _displayAccountNumber,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF1E293B),
+            const Spacer(),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  acc?.number ?? 'ជ្រើសរើសគណនី',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1E293B),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                _displayBalance,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF334155),
+                const SizedBox(height: 2),
+                Text(
+                  acc == null
+                      ? ''
+                      : '${acc.balanceText} ${acc.currencyWord}',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF334155),
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(width: 8),
-          const Icon(
-            Icons.arrow_drop_down_rounded,
-            color: Color(0xFFC48B2B), // ACLEDA Gold
-            size: 26,
-          ),
-        ],
+              ],
+            ),
+            const SizedBox(width: 8),
+            const Icon(
+              Icons.arrow_drop_down_rounded,
+              color: Color(0xFFC48B2B),
+              size: 26,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -658,9 +896,6 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
                     fontWeight: FontWeight.w700,
                     color: Color(0xFF1E293B),
                   ),
-                  onChanged: (val) {
-                    setState(() {});
-                  },
                   decoration: const InputDecoration(
                     isDense: true,
                     contentPadding: EdgeInsets.symmetric(vertical: 4),
@@ -669,7 +904,6 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
                   ),
                 ),
               ),
-              // Contact Picker Icon Pill
               Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
@@ -679,7 +913,7 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
                 ),
                 child: const Icon(
                   Icons.contact_phone_outlined,
-                  color: Color(0xFFC48B2B), // ACLEDA Gold
+                  color: Color(0xFFC48B2B),
                   size: 20,
                 ),
               ),
@@ -742,7 +976,8 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
   }
 
   Widget _buildQuickAmountRow() {
-    final list = _showMoreAmounts ? _quickAmounts : _quickAmounts.take(3).toList();
+    final list =
+        _showMoreAmounts ? _quickAmounts : _quickAmounts.take(3).toList();
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -750,7 +985,9 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
           spacing: 10,
           runSpacing: 10,
           children: list.map((item) {
-            final double amount = item['amount'] as double;
+            final double amount = (item['amount'] as num).toDouble();
+            final String display = item['display'] as String;
+            final String days = item['days'] as String;
             final isSelected = _selectedQuickAmount == amount;
             final itemWidth = (constraints.maxWidth - 20) / 3;
 
@@ -758,7 +995,7 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
               onTap: () {
                 setState(() {
                   _selectedQuickAmount = amount;
-                  _amountController.text = item['display'];
+                  _amountController.text = display;
                   _selectedPackageIndex = null;
                 });
               },
@@ -767,9 +1004,7 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
                 width: itemWidth,
                 padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
                 decoration: BoxDecoration(
-                  color: isSelected
-                      ? const Color(0xFFEFF6FF)
-                      : Colors.white,
+                  color: isSelected ? const Color(0xFFEFF6FF) : Colors.white,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: isSelected
@@ -779,7 +1014,7 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.02),
+                      color: Colors.black.withValues(alpha: 0.02),
                       blurRadius: 4,
                       offset: const Offset(0, 2),
                     )
@@ -787,7 +1022,6 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
                 ),
                 child: Row(
                   children: [
-                    // Currency Circle
                     Container(
                       width: 24,
                       height: 24,
@@ -807,13 +1041,12 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
                       ),
                     ),
                     const SizedBox(width: 6),
-                    // Amount & Validity
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Text(
-                            item['display'],
+                            display,
                             style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w800,
@@ -822,7 +1055,7 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            item['days'],
+                            days,
                             style: const TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w500,
@@ -843,15 +1076,16 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
   }
 
   Widget _buildDataPackageList() {
+    final packages = _currentDataPackages;
     return SizedBox(
       height: 120,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
-        itemCount: _currentDataPackages.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        itemCount: packages.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 12),
         itemBuilder: (context, index) {
-          final pkg = _currentDataPackages[index];
+          final pkg = packages[index];
           final isSelected = _selectedPackageIndex == index;
 
           return GestureDetector(
@@ -876,7 +1110,7 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
+                    color: Colors.black.withValues(alpha: 0.04),
                     blurRadius: 6,
                     offset: const Offset(0, 3),
                   ),
@@ -885,7 +1119,6 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Top Banner with Title
                   Container(
                     width: double.infinity,
                     padding:
@@ -898,7 +1131,7 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
                       ),
                     ),
                     child: Text(
-                      pkg['title'],
+                      pkg['title'] as String,
                       style: const TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w800,
@@ -908,8 +1141,6 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-
-                  // Body Content
                   Expanded(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
@@ -920,7 +1151,7 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
                         children: [
                           Center(
                             child: Text(
-                              pkg['data'],
+                              pkg['data'] as String,
                               style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w900,
@@ -930,7 +1161,7 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            pkg['priceInfo'],
+                            pkg['priceInfo'] as String,
                             style: const TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
@@ -939,7 +1170,7 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            pkg['feature'],
+                            pkg['feature'] as String,
                             style: const TextStyle(
                               fontSize: 9,
                               fontWeight: FontWeight.w400,
@@ -962,24 +1193,14 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
   Widget _buildBottomActionButton() {
     return Container(
       width: double.infinity,
-      color: const Color(0xFF13253E), // ACLEDA Deep Navy
+      color: const Color(0xFF13253E),
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
       child: SafeArea(
         top: false,
         child: SizedBox(
           height: 48,
           child: ElevatedButton(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    'កំពុងដំណើរការបញ្ចូលលុយសម្រាប់ ${_phoneController.text}...',
-                  ),
-                  backgroundColor: const Color(0xFF13253E),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-            },
+            onPressed: _isLoading ? null : _processTopUp,
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.transparent,
               shadowColor: Colors.transparent,
@@ -987,15 +1208,24 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
                 borderRadius: BorderRadius.circular(10),
               ),
             ),
-            child: const Text(
-              'យល់ព្រម',
-              style: TextStyle(
-                color: Color(0xFFE5A93C), // ACLEDA Gold
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.5,
-              ),
-            ),
+            child: _isLoading
+                ? const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      color: Color(0xFFE5A93C),
+                      strokeWidth: 2.5,
+                    ),
+                  )
+                : const Text(
+                    'យល់ព្រម',
+                    style: TextStyle(
+                      color: Color(0xFFE5A93C),
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
           ),
         ),
       ),
@@ -1003,7 +1233,6 @@ class _MobileTopUpScreenState extends State<MobileTopUpScreen> {
   }
 }
 
-// Custom Painter for ACLEDA Golden Mythic Bird Logo Icon
 class _AcledaBirdLogoPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
@@ -1013,10 +1242,14 @@ class _AcledaBirdLogoPainter extends CustomPainter {
 
     final path = Path();
     path.moveTo(size.width * 0.1, size.height * 0.2);
-    path.quadraticBezierTo(size.width * 0.5, 0, size.width * 0.95, size.height * 0.15);
-    path.quadraticBezierTo(size.width * 0.8, size.height * 0.5, size.width * 0.95, size.height * 0.9);
-    path.quadraticBezierTo(size.width * 0.4, size.height * 0.7, size.width * 0.2, size.height * 0.95);
-    path.quadraticBezierTo(size.width * 0.35, size.height * 0.5, size.width * 0.1, size.height * 0.2);
+    path.quadraticBezierTo(
+        size.width * 0.5, 0, size.width * 0.95, size.height * 0.15);
+    path.quadraticBezierTo(size.width * 0.8, size.height * 0.5,
+        size.width * 0.95, size.height * 0.9);
+    path.quadraticBezierTo(size.width * 0.4, size.height * 0.7,
+        size.width * 0.2, size.height * 0.95);
+    path.quadraticBezierTo(size.width * 0.35, size.height * 0.5,
+        size.width * 0.1, size.height * 0.2);
     path.close();
 
     canvas.drawPath(path, paint);

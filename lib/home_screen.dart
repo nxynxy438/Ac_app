@@ -3,11 +3,14 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
+import 'account_store.dart';
+import 'accounts_screen.dart';
 import 'my_qr_screen.dart';
 import 'scan_qr_screen.dart';
 import 'user_session.dart';
 import 'mobile_top_up_screen.dart';
-
+import 'transaction_history.dart';
+import 'transfer_menu_screen.dart';
 
 class _C {
   _C._();
@@ -31,9 +34,9 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  final AccountStore _store = AccountStore.instance;
   bool _hideBalance = true;
 
-  // Real data the user entered during registration (saved by UserSession)
   String get _displayName {
     final s = UserSession.instance;
     if (s.firstName.isNotEmpty) return s.firstName;
@@ -57,24 +60,38 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     UserSession.instance.addListener(_onSessionChanged);
-    // Load the real profile (name, photo...) from the server; rebuilds when done
+    _store.addListener(_refresh);
     UserSession.instance.syncFromServer();
   }
 
   @override
   void dispose() {
     UserSession.instance.removeListener(_onSessionChanged);
+    _store.removeListener(_refresh);
     super.dispose();
+  }
+
+  void _refresh() {
+    if (mounted) setState(() {});
   }
 
   int _navIndex = 0;
 
-  // Opens the real screen for a tile; others still show "coming soon"
   void _openTile(String label) {
-    if (label == 'Scan QR') {
+    if (label == 'ទូទាត់តាម​ ​QR' || label == 'Scan QR') {
       Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => const ScanQrScreen()),
+      );
+    } else if (label == 'ផ្ទេរប្រាក់') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const TransferMenuScreen()),
+      );
+    } else if (label == 'គណនី') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const AccountsScreen()),
       );
     } else {
       _soon(label);
@@ -126,7 +143,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               MaterialPageRoute(
                                 builder: (_) => MobileTopUpScreen(
                                   accountNumber: UserSession.instance.accountNumber,
-                                  balance: '1,250.00 ដុល្លារ',
+                                  balance: '${AccountStore.format(_store.totalUsd, 'USD')} ដុល្លារ',
                                 ),
                               ),
                             );
@@ -164,18 +181,16 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ),
-
-          // Voice assistant button
           Positioned(
             right: 24,
             bottom: 92,
             child: Container(
               width: 46,
               height: 46,
-              decoration: BoxDecoration(
-                color: const Color(0xFF2F7DE1),
+              decoration: const BoxDecoration(
+                color: Color(0xFF2F7DE1),
                 shape: BoxShape.circle,
-                boxShadow: const [
+                boxShadow: [
                   BoxShadow(
                     color: Color(0x662F7DE1),
                     blurRadius: 14,
@@ -186,8 +201,6 @@ class _HomeScreenState extends State<HomeScreen> {
               child: const Icon(Icons.mic, color: Colors.white, size: 24),
             ),
           ),
-
-          // Floating bottom navigation + chatbot button
           Positioned(
             left: 14,
             right: 14,
@@ -209,12 +222,11 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ---------------- Header ----------------
   Widget _header() {
     return Row(
       children: [
         Image.asset(
-          'assets/Acleda.png', // add to pubspec.yaml assets
+          'assets/Acleda.png',
           height: 34,
           errorBuilder: (_, __, ___) =>
               const Icon(Icons.eco, color: _C.gold, size: 30),
@@ -233,25 +245,29 @@ class _HomeScreenState extends State<HomeScreen> {
           clipBehavior: Clip.none,
           children: [
             IconButton(
-              onPressed: () => _soon('Notifications'),
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const TransactionHistoryScreen()),
+              ),
               icon: const Icon(
                 Icons.notifications_none_rounded,
                 color: _C.text,
                 size: 28,
               ),
             ),
-            Positioned(
-              right: 12,
-              top: 10,
-              child: Container(
-                width: 9,
-                height: 9,
-                decoration: const BoxDecoration(
-                  color: _C.red,
-                  shape: BoxShape.circle,
+            if (_store.history.isNotEmpty)
+              Positioned(
+                right: 12,
+                top: 10,
+                child: Container(
+                  width: 9,
+                  height: 9,
+                  decoration: const BoxDecoration(
+                    color: _C.red,
+                    shape: BoxShape.circle,
+                  ),
                 ),
               ),
-            ),
           ],
         ),
         const SizedBox(width: 6),
@@ -279,7 +295,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ---------------- Greeting ----------------
   Widget _greeting() {
     return Row(
       children: [
@@ -325,84 +340,86 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ---------------- Balance card ----------------
   Widget _balanceCard() {
     return GestureDetector(
-      onTap: () => _soon('Balance details'),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const AccountsScreen()),
+      ),
       child: Container(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-      decoration: _boxDecoration(radius: 20),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 104,
-            height: 104,
-            child: CustomPaint(
-              painter: _RingPainter(),
-              child: const Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.account_balance_wallet_outlined,
-                      color: _C.text,
-                      size: 26,
-                    ),
-                    SizedBox(height: 4),
-                    Text(
-                      'គណនី',
-                      style: TextStyle(color: _C.text, fontSize: 12),
-                    ),
-                  ],
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+        decoration: _boxDecoration(radius: 20),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 104,
+              height: 104,
+              child: CustomPaint(
+                painter: _RingPainter(),
+                child: const Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.account_balance_wallet_outlined,
+                        color: _C.text,
+                        size: 26,
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'គណនី',
+                        style: TextStyle(color: _C.text, fontSize: 12),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    const Text(
-                      'សមតុល្យសរុប',
-                      style: TextStyle(color: _C.muted, fontSize: 13),
-                    ),
-                    const SizedBox(width: 10),
-                    InkWell(
-                      onTap: () => setState(() => _hideBalance = !_hideBalance),
-                      customBorder: const CircleBorder(),
-                      child: Container(
-                        width: 30,
-                        height: 30,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFF3B6EA5),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          _hideBalance
-                              ? Icons.visibility_off_outlined
-                              : Icons.visibility_outlined,
-                          color: Colors.white,
-                          size: 17,
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      const Text(
+                        'សមតុល្យសរុប',
+                        style: TextStyle(color: _C.muted, fontSize: 13),
+                      ),
+                      const SizedBox(width: 10),
+                      InkWell(
+                        onTap: () => setState(() => _hideBalance = !_hideBalance),
+                        customBorder: const CircleBorder(),
+                        child: Container(
+                          width: 30,
+                          height: 30,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF3B6EA5),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            _hideBalance
+                                ? Icons.visibility_off_outlined
+                                : Icons.visibility_outlined,
+                            color: Colors.white,
+                            size: 17,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                _amount('1,250,000', '៛', _C.gold),
-                const SizedBox(height: 10),
-                _amount('1,250.00', r'$', _C.blue),
-              ],
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  _amount(AccountStore.format(_store.totalKhr, 'KHR'), '៛', _C.gold),
+                  const SizedBox(height: 10),
+                  _amount(AccountStore.format(_store.totalUsd, 'USD'), r'$', _C.blue),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
-  );
+    );
   }
 
   Widget _amount(String value, String symbol, Color symbolColor) {
@@ -437,7 +454,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ---------------- Tiles ----------------
   Widget _tileRow(List<_TileData> items) {
     return Row(
       children: [
@@ -454,7 +470,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ---------------- Shortcuts ----------------
   Widget _shortcuts() {
     const items = [
       _TileData(Icons.stars_rounded, 'ពិន្ទុរបស់ខ្ញុំ'),
@@ -511,7 +526,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ---------------- Banner ----------------
   Widget _banner() {
     return Container(
       height: 150,
@@ -540,7 +554,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ---------------- Bottom navigation ----------------
   Widget _bottomNav() {
     const items = [
       _NavData(Icons.home_rounded, 'ទំព័រដើម'),
@@ -570,7 +583,15 @@ class _HomeScreenState extends State<HomeScreen> {
                 borderRadius: BorderRadius.circular(26),
                 onTap: () {
                   setState(() => _navIndex = i);
-                  if (i != 0) _soon(items[i].label);
+                  if (i == 1) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const TransactionHistoryScreen()),
+                    );
+                  } else if (i != 0) {
+                    _soon(items[i].label);
+                  }
                 },
                 child: _NavItem(data: items[i], selected: _navIndex == i),
               ),
@@ -605,12 +626,11 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// ---------------- Helpers ----------------
 BoxDecoration _boxDecoration({double radius = 16}) => BoxDecoration(
-  color: _C.tile,
-  borderRadius: BorderRadius.circular(radius),
-  border: Border.all(color: _C.tileBorder, width: 1),
-);
+      color: _C.tile,
+      borderRadius: BorderRadius.circular(radius),
+      border: Border.all(color: _C.tileBorder, width: 1),
+    );
 
 class _TileData {
   final IconData icon;
@@ -742,7 +762,6 @@ class _NavItem extends StatelessWidget {
   }
 }
 
-/// Blue + gold ring around the "Accounts" icon.
 class _RingPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
