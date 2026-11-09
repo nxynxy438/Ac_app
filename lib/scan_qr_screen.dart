@@ -6,7 +6,6 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:mobile_scanner/mobile_scanner.dart';
 
-import 'my_qr_screen.dart'; // QrPayload
 import 'user_session.dart';
 
 /// Full-screen camera scanner: the live camera fills the whole screen and the
@@ -152,7 +151,7 @@ class _ScanQrScreenState extends State<ScanQrScreen>
       );
 
   Future<void> _showResult(String raw) {
-    final info = QrPayload.parse(raw);
+    final info = _parseQrPayload(raw);
     return showModalBottomSheet<void>(
       context: context,
       backgroundColor: _bar,
@@ -164,6 +163,29 @@ class _ScanQrScreenState extends State<ScanQrScreen>
         child: info == null ? _invalidBody(ctx, raw) : _validBody(ctx, info),
       ),
     );
+  }
+
+  Map<String, String>? _parseQrPayload(String raw) {
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is Map && decoded['email'] is String) {
+        final email = (decoded['email'] as String).trim();
+        if (email.isEmpty) return null;
+        final name = decoded['name'];
+        return {
+          'email': email,
+          if (name is String) 'name': name,
+        };
+      }
+    } catch (_) {
+      // Try a URL-style QR payload below.
+    }
+
+    final uri = Uri.tryParse(raw);
+    final email = uri?.queryParameters['email']?.trim();
+    if (email == null || email.isEmpty) return null;
+    final name = uri!.queryParameters['name'];
+    return {'email': email, if (name != null) 'name': name};
   }
 
   // Not one of our QR codes -> invalid

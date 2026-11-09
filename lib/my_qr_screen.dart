@@ -1,219 +1,317 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-
+import 'dart:convert';
 import 'user_session.dart';
+import 'account_store.dart';
 
-/// Builds / reads the text stored inside the QR code.
-/// Short format (keeps the QR simple and easy to scan):
-///   khmerbank://pay?e=<email>&n=<full name>
-class QrPayload {
-  QrPayload._();
-
-  static String build({required String email, required String name}) {
-    return Uri(
-      scheme: 'khmerbank',
-      host: 'pay',
-      queryParameters: {
-        'e': email,
-        if (name.isNotEmpty) 'n': name,
-      },
-    ).toString();
-  }
-
-  /// Returns {email, name} when [raw] is one of our QR codes, otherwise null.
-  static Map<String, String>? parse(String raw) {
-    final uri = Uri.tryParse(raw.trim());
-    if (uri == null || uri.scheme != 'khmerbank' || uri.host != 'pay') {
-      return null;
-    }
-    final q = uri.queryParameters;
-    final email = q['e'] ?? q['email'] ?? '';
-    if (email.isEmpty) return null;
-    return {'email': email, 'name': q['n'] ?? q['name'] ?? ''};
-  }
-}
-
-/// High-contrast QR: pure black on white, big quiet zone, low density.
-class _QrView extends StatelessWidget {
-  final String data;
-  final double size;
-  const _QrView({required this.data, required this.size});
-
-  @override
-  Widget build(BuildContext context) {
-    return QrImageView(
-      data: data,
-      version: QrVersions.auto,
-      size: size,
-      padding: const EdgeInsets.all(12), // white "quiet zone" scanners need
-      backgroundColor: Colors.white,
-      errorCorrectionLevel: QrErrorCorrectLevel.M,
-      eyeStyle: const QrEyeStyle(
-        eyeShape: QrEyeShape.square,
-        color: Colors.black,
-      ),
-      dataModuleStyle: const QrDataModuleStyle(
-        dataModuleShape: QrDataModuleShape.square,
-        color: Colors.black,
-      ),
-    );
-  }
-}
-
-class MyQrScreen extends StatelessWidget {
+class MyQrScreen extends StatefulWidget {
   const MyQrScreen({super.key});
 
-  static const _bg = Color(0xFF1A2845);
-  static const _bar = Color(0xFF1F2C45);
-  static const _gold = Color(0xFFC9A548);
-  static const _text = Color(0xFFF2F4F8);
+  @override
+  State<MyQrScreen> createState() => _MyQrScreenState();
+}
 
-  // Full-screen white page with the biggest possible QR (easiest to scan)
-  void _enlarge(BuildContext context, String data, String name) {
-    showDialog<void>(
-      context: context,
-      barrierColor: Colors.white,
-      builder: (ctx) => GestureDetector(
-        onTap: () => Navigator.pop(ctx),
-        child: Material(
-          color: Colors.white,
-          child: SafeArea(
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    name,
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.black,
+class _MyQrScreenState extends State<MyQrScreen> {
+  // Track selected currency state: true = KHR, false = USD
+  bool _isKhrSelected = true;
+
+  // Dynamically resolve information with safe fallbacks matching your identity data
+  String get accountName {
+    final session = UserSession.instance;
+    return session.firstName.isNotEmpty && session.lastName.isNotEmpty
+        ? '${session.firstName} ${session.lastName}'.toUpperCase()
+        : 'PHORN RANY';
+  }
+
+  String get accountNumber {
+    final session = UserSession.instance;
+    return session.accountNumber.isNotEmpty 
+        ? session.accountNumber 
+        : '010 349 035';
+  }
+
+  double get balanceKHR {
+    final store = AccountStore.instance;
+    return store.totalKhr > 0 ? store.totalKhr : 400000.0;
+  }
+
+  double get balanceUSD {
+    final store = AccountStore.instance;
+    return store.totalUsd > 0 ? store.totalUsd : 150.25;
+  }
+
+  // Generates payload tailored to the currently highlighted account selection
+  String _generateQrPayload() {
+    final Map<String, dynamic> qrPayloadMap = {
+      'type': 'bank_account_balance',
+      'name': accountName,
+      'accountNo': accountNumber,
+      'selectedCurrency': _isKhrSelected ? 'KHR' : 'USD',
+      'activeBalance': _isKhrSelected ? balanceKHR : balanceUSD,
+      'balances': {
+        'KHR': balanceKHR,
+        'USD': balanceUSD,
+      },
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
+    };
+    return jsonEncode(qrPayloadMap);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    String qrStringData = _generateQrPayload();
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF132A5A), // Genuine deep blue Acleda app theme background
+      appBar: AppBar(
+        title: const Text(
+          "KHQR របស់ខ្ញុំ", 
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)
+        ),
+        centerTitle: true,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
+          onPressed: () => Navigator.pop(context),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.info_outline, color: Colors.white),
+            onPressed: () {},
+          )
+        ],
+      ),
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0),
+          child: Column(
+            children: [
+              const SizedBox(height: 20),
+              
+              // White Card Layout representing Bakong KHQR Matrix
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: Column(
+                  children: [
+                    // Red KHQR Header Banner
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFE52326),
+                        borderRadius: BorderRadius.only(
+                          topLeft: Radius.circular(14),
+                          topRight: Radius.circular(14),
+                          bottomRight: Radius.circular(30),
+                        ),
+                      ),
+                      child: const Center(
+                        child: Text(
+                          "KHQR", 
+                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 22, letterSpacing: 1.2)
+                        ),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  _QrView(
-                    data: data,
-                    size: MediaQuery.of(ctx).size.width - 24,
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Tap anywhere to close',
-                    style: TextStyle(color: Colors.black54),
-                  ),
+                    const SizedBox(height: 16),
+                    
+                    // User Account Holder Name
+                    Text(
+                      accountName, 
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: Color(0xFF1F1F1F), letterSpacing: 0.5)
+                    ),
+                    const SizedBox(height: 10),
+                    
+                    // Decorative Dashed Divider Line
+                    Row(
+                      children: List.generate(30, (index) => Expanded(
+                        child: Container(
+                          color: index % 2 == 0 ? Colors.transparent : Colors.grey.shade300,
+                          height: 1,
+                        ),
+                      )),
+                    ),
+                    const SizedBox(height: 20),
+                    
+                    // QR Core Implementation Box with center embedded logo space
+                    Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        QrImageView(
+                          data: qrStringData,
+                          version: QrVersions.auto,
+                          size: 230.0,
+                          gapless: true,
+                          eyeStyle: const QrEyeStyle(eyeShape: QrEyeShape.square, color: Colors.black),
+                          dataModuleStyle: const QrDataModuleStyle(dataModuleShape: QrDataModuleShape.square, color: Colors.black),
+                        ),
+                        // Inner Center Red Logo Icon Anchor
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE52326),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 3),
+                          ),
+                          child: const Icon(Icons.brightness_7, color: Colors.white, size: 22),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              
+              // Account Selection Container (Simulating your Transfer Screen options)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF203B70),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "គណនីទទួលប្រាក់", 
+                      style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500)
+                    ),
+                    const SizedBox(height: 12),
+                    
+                    // KHR Selection Option Tile Row
+                    GestureDetector(
+                      onTap: () => setState(() => _isKhrSelected = true),
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: _isKhrSelected ? Colors.white.withOpacity(0.08) : Colors.transparent,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: _isKhrSelected ? const Color(0xFFC9A548) : Colors.transparent,
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              _isKhrSelected ? Icons.radio_button_checked : Icons.radio_button_off,
+                              color: _isKhrSelected ? const Color(0xFFC9A548) : Colors.white60,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                "$accountNumber (រៀល)", 
+                                style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500)
+                              ),
+                            ),
+                            Text(
+                              "${AccountStore.format(balanceKHR, 'KHR')} ៛", 
+                              style: TextStyle(
+                                color: _isKhrSelected ? const Color(0xFFC9A548) : Colors.white, 
+                                fontWeight: FontWeight.bold, 
+                                fontSize: 15
+                              )
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    
+                    // USD Selection Option Tile Row
+                    GestureDetector(
+                      onTap: () => setState(() => _isKhrSelected = false),
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: !_isKhrSelected ? Colors.white.withOpacity(0.08) : Colors.transparent,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: !_isKhrSelected ? const Color(0xFF5BB5F0) : Colors.transparent,
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              !_isKhrSelected ? Icons.radio_button_checked : Icons.radio_button_off,
+                              color: !_isKhrSelected ? const Color(0xFF5BB5F0) : Colors.white60,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                "$accountNumber (ដុល្លារ)", 
+                                style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500)
+                              ),
+                            ),
+                            Text(
+                              "\$" + AccountStore.format(balanceUSD, 'USD'), 
+                              style: TextStyle(
+                                color: !_isKhrSelected ? const Color(0xFF5BB5F0) : Colors.white, 
+                                fontWeight: FontWeight.bold, 
+                                fontSize: 15
+                              )
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 30),
+              
+              // Bottom Quick Utility Action Buttons Layout
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _buildActionButton(Icons.file_download_outlined, "រក្សាទុក"),
+                  _buildActionButton(Icons.label_outline, "កំណត់ចំនួនទឹកប្រាក់"),
+                  _buildActionButton(Icons.ios_share, "ចែករំលែក"),
                 ],
               ),
-            ),
+              const SizedBox(height: 25),
+            ],
           ),
         ),
       ),
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final s = UserSession.instance;
-    final name = s.fullName.isNotEmpty ? s.fullName : 'My account';
-    final hasData = s.email.isNotEmpty;
-    final data = hasData ? QrPayload.build(email: s.email, name: s.fullName) : '';
-    final qrSize = (MediaQuery.of(context).size.width - 48 - 48).clamp(200.0, 320.0);
-
-    return Scaffold(
-      backgroundColor: _bg,
-      appBar: AppBar(
-        backgroundColor: _bar,
-        foregroundColor: _text,
-        elevation: 0,
-        centerTitle: true,
-        title: const Text(
-          'MY QR',
-          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, letterSpacing: 0.9),
+  Widget _buildActionButton(IconData icon, String label) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 52,
+          height: 52,
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.1),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: Colors.white, size: 24),
         ),
-      ),
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: const [
-                      BoxShadow(color: Color(0x55000000), blurRadius: 20, offset: Offset(0, 8)),
-                    ],
-                  ),
-                  child: Column(
-                    children: [
-                      Text(
-                        name,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF1A2845),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        s.email,
-                        style: const TextStyle(fontSize: 13, color: Color(0xFF6B7690)),
-                      ),
-                      const SizedBox(height: 14),
-                      if (hasData)
-                        GestureDetector(
-                          onTap: () => _enlarge(context, data, name),
-                          child: _QrView(data: data, size: qrSize),
-                        )
-                      else
-                        const SizedBox(
-                          height: 240,
-                          child: Center(
-                            child: Text(
-                              'Register first to get your QR code.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(color: Color(0xFF6B7690)),
-                            ),
-                          ),
-                        ),
-                      if (hasData) ...[
-                        const SizedBox(height: 6),
-                        const Text(
-                          'Tap the code to enlarge',
-                          style: TextStyle(fontSize: 12, color: Color(0xFF6B7690)),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 18),
-                const Text(
-                  'Show this code to receive money.\nThe sender scans it with Scan QR.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Color(0xFFA9B6CC), fontSize: 13, height: 1.4),
-                ),
-                const SizedBox(height: 14),
-                if (hasData)
-                  TextButton.icon(
-                    onPressed: () async {
-                      await Clipboard.setData(ClipboardData(text: data));
-                      if (!context.mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('QR text copied')),
-                      );
-                    },
-                    icon: const Icon(Icons.copy_rounded, color: _gold, size: 18),
-                    label: const Text('Copy QR text', style: TextStyle(color: _gold)),
-                  ),
-              ],
-            ),
+        const SizedBox(height: 8),
+        SizedBox(
+          width: 100,
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.white, fontSize: 11, height: 1.2),
+            maxLines: 2,
           ),
         ),
-      ),
+      ],
     );
   }
 }
